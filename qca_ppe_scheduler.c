@@ -92,22 +92,17 @@ static const struct bm_tdm_entry hppe_bm_tdm[] = {
 
 static void ppe_tdm_init(struct qca_ppe *ppe)
 {
+	const struct ppe_data *data = ppe->data;
 	const struct psch_tdm_entry *psch;
 	const struct bm_tdm_entry *bm;
 	int psch_num, bm_num;
 	int i;
 
-	if (ppe->data->type == PPE_TYPE_IPQ8074) {
-		psch = hppe_psch_tdm;
-		psch_num = ARRAY_SIZE(hppe_psch_tdm);
-		bm = hppe_bm_tdm;
-		bm_num = ARRAY_SIZE(hppe_bm_tdm);
-	} else {
-		psch = cppe_psch_tdm;
-		psch_num = ARRAY_SIZE(cppe_psch_tdm);
-		bm = cppe_bm_tdm;
-		bm_num = ARRAY_SIZE(cppe_bm_tdm);
-	}
+	psch = data->psch_tdm->entries;
+	psch_num = data->psch_tdm->num;
+
+	bm = data->bm_tdm->entries;
+	bm_num = data->bm_tdm->num;
 
 	for (i = 0; i < psch_num; i++)
 		ppe_w32(ppe, PPE_TM_PSCH_TDM(i),
@@ -476,6 +471,26 @@ static void ppe_qos_init(struct qca_ppe *ppe)
 			PPE_QOS_ACL_PREC,
 			qos_bits);
 }
+
+const struct psch_tdm_data cppe_psch_tdm_data = {
+	.entries = cppe_psch_tdm,
+	.num = ARRAY_SIZE(cppe_psch_tdm),
+};
+
+const struct psch_tdm_data hppe_psch_tdm_data = {
+	.entries = hppe_psch_tdm,
+	.num = ARRAY_SIZE(hppe_psch_tdm),
+};
+
+const struct bm_tdm_data cppe_bm_tdm_data = {
+	.entries = cppe_bm_tdm,
+	.num = ARRAY_SIZE(cppe_bm_tdm),
+};
+
+const struct bm_tdm_data hppe_bm_tdm_data = {
+	.entries = hppe_bm_tdm,
+	.num = ARRAY_SIZE(hppe_bm_tdm),
+};
 
 void ppe_scheduler_init(struct qca_ppe *ppe)
 {

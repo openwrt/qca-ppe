@@ -412,6 +412,16 @@
 #define QM_CPU_CODE_OFFSET		1024
 #define QM_SERVICE_CODE_OFFSET		2048
 
+struct psch_tdm_data {
+	const struct psch_tdm_entry *entries;
+	int num;
+};
+
+struct bm_tdm_data {
+	const struct bm_tdm_entry *entries;
+	int num;
+};
+
 enum ppe_type {
 	PPE_TYPE_IPQ6018,
 	PPE_TYPE_IPQ8074,
@@ -429,6 +439,8 @@ struct ppe_data {
 	u16 qm_total_buf;
 	u16 qm_ceiling;
 	u16 qm_green_max;
+	const struct psch_tdm_data *psch_tdm;
+	const struct bm_tdm_data *bm_tdm;
 };
 
 struct qca_ppe {
@@ -470,6 +482,12 @@ struct qca_ppe_priv {
 	struct clk *port_tx_clk[QCA_PPE_MAX_PORTS];
 	struct reset_control *port_rst[QCA_PPE_MAX_PORTS];
 };
+
+extern const struct psch_tdm_data cppe_psch_tdm_data;
+extern const struct psch_tdm_data hppe_psch_tdm_data;
+
+extern const struct bm_tdm_data cppe_bm_tdm_data;
+extern const struct bm_tdm_data hppe_bm_tdm_data;
 
 static inline u32 ppe_r32(struct qca_ppe *ppe, u32 off)
 {

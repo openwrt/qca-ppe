@@ -1250,6 +1250,8 @@ static const struct ppe_data ipq6018_ppe_data = {
 	.qm_total_buf		= 1506,
 	.qm_ceiling		= 216,
 	.qm_green_max		= 144,
+	.psch_tdm		= &cppe_psch_tdm_data,
+	.bm_tdm			= &cppe_bm_tdm_data,
 };
 
 static const struct ppe_data ipq8074_ppe_data = {
@@ -1264,6 +1266,8 @@ static const struct ppe_data ipq8074_ppe_data = {
 	.qm_total_buf		= 2000,
 	.qm_ceiling		= 400,
 	.qm_green_max		= 250,
+	.psch_tdm		= &hppe_psch_tdm_data,
+	.bm_tdm			= &hppe_bm_tdm_data,
 };
 
 static const struct of_device_id qca_ppe_of_match[] = {
