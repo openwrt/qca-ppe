@@ -5,6 +5,7 @@
 
 #include <linux/bitfield.h>
 #include <linux/bitmap.h>
+#include <linux/regmap.h>
 #include <linux/spinlock.h>
 #include <linux/types.h>
 #include <linux/io.h>
@@ -443,11 +444,6 @@ struct ppe_data {
 	const struct bm_tdm_data *bm_tdm;
 };
 
-struct qca_ppe {
-	void __iomem *base;
-	const struct ppe_data *data;
-};
-
 struct qca_ppe_bridge_vsi {
 	struct net_device *br_dev;
 	u32 vsi;
@@ -466,7 +462,8 @@ struct qca_ppe_vlan_entry {
 
 struct qca_ppe_priv {
 	struct dsa_switch ds;
-	struct qca_ppe ppe;
+	struct regmap *regmap;
+	const struct ppe_data *data;
 	struct clk_bulk_data *clks;
 	int num_clks;
 	spinlock_t fdb_lock;
@@ -489,32 +486,12 @@ extern const struct psch_tdm_data hppe_psch_tdm_data;
 extern const struct bm_tdm_data cppe_bm_tdm_data;
 extern const struct bm_tdm_data hppe_bm_tdm_data;
 
-static inline u32 ppe_r32(struct qca_ppe *ppe, u32 off)
-{
-	return readl(ppe->base + off);
-}
-
-static inline void ppe_w32(struct qca_ppe *ppe, u32 off, u32 val)
-{
-	writel(val, ppe->base + off);
-}
-
-static inline void ppe_m32(struct qca_ppe *ppe, u32 off, u32 mask, u32 val)
-{
-	u32 reg;
-
-	reg = ppe_r32(ppe, off);
-	reg &= ~mask;
-	reg |= val & mask;
-	ppe_w32(ppe, off, reg);
-}
-
 static inline struct qca_ppe_priv *ds_to_priv(struct dsa_switch *ds)
 {
 	return container_of(ds, struct qca_ppe_priv, ds);
 }
 
-void ppe_scheduler_init(struct qca_ppe *ppe);
+void ppe_scheduler_init(struct qca_ppe_priv *priv);
 
 int ppe_vsi_alloc(struct qca_ppe_priv *priv);
 void ppe_vsi_free(struct qca_ppe_priv *priv, u32 vsi);

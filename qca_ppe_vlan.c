@@ -34,9 +34,9 @@ static void ppe_xlt_rule_set(struct qca_ppe_priv *priv, int idx,
 		w1 |= FIELD_PREP(PPE_XLT_CKEY_VID, vid);
 	}
 
-	ppe_w32(&priv->ppe, PPE_XLT_RULE_TBL(idx), w0);
-	ppe_w32(&priv->ppe, PPE_XLT_RULE_W1(idx), w1);
-	ppe_w32(&priv->ppe, PPE_XLT_RULE_TBL(idx) + 8, 0);
+	regmap_write(priv->regmap, PPE_XLT_RULE_TBL(idx), w0);
+	regmap_write(priv->regmap, PPE_XLT_RULE_W1(idx), w1);
+	regmap_write(priv->regmap, PPE_XLT_RULE_TBL(idx) + 8, 0);
 }
 
 static void ppe_xlt_action_set(struct qca_ppe_priv *priv, int idx,
@@ -49,17 +49,17 @@ static void ppe_xlt_action_set(struct qca_ppe_priv *priv, int idx,
 
 	w1 = PPE_XLT_VSI_CMD | FIELD_PREP(PPE_XLT_VSI, vsi);
 
-	ppe_w32(&priv->ppe, PPE_XLT_ACTION_TBL(idx), w0);
-	ppe_w32(&priv->ppe, PPE_XLT_ACTION_W1(idx), w1);
+	regmap_write(priv->regmap, PPE_XLT_ACTION_TBL(idx), w0);
+	regmap_write(priv->regmap, PPE_XLT_ACTION_W1(idx), w1);
 }
 
 static void ppe_xlt_clear(struct qca_ppe_priv *priv, int idx)
 {
-	ppe_w32(&priv->ppe, PPE_XLT_RULE_TBL(idx), 0);
-	ppe_w32(&priv->ppe, PPE_XLT_RULE_W1(idx), 0);
-	ppe_w32(&priv->ppe, PPE_XLT_RULE_TBL(idx) + 8, 0);
-	ppe_w32(&priv->ppe, PPE_XLT_ACTION_TBL(idx), 0);
-	ppe_w32(&priv->ppe, PPE_XLT_ACTION_W1(idx), 0);
+	regmap_write(priv->regmap, PPE_XLT_RULE_TBL(idx), 0);
+	regmap_write(priv->regmap, PPE_XLT_RULE_W1(idx), 0);
+	regmap_write(priv->regmap, PPE_XLT_RULE_TBL(idx) + 8, 0);
+	regmap_write(priv->regmap, PPE_XLT_ACTION_TBL(idx), 0);
+	regmap_write(priv->regmap, PPE_XLT_ACTION_W1(idx), 0);
 }
 
 static void ppe_xlt_idx_free(struct qca_ppe_priv *priv, int *idx)
@@ -72,17 +72,17 @@ static void ppe_xlt_idx_free(struct qca_ppe_priv *priv, int *idx)
 static void ppe_eg_vsi_tag_port_set(struct qca_ppe_priv *priv,
 				    u32 vsi, int port, u32 mode)
 {
-	ppe_m32(&priv->ppe, PPE_EG_VSI_TAG(vsi),
-		0x3 << (port * 2), (mode & 0x3) << (port * 2));
+	regmap_update_bits(priv->regmap, PPE_EG_VSI_TAG(vsi),
+			   0x3 << (port * 2), (mode & 0x3) << (port * 2));
 }
 
 static void ppe_port_def_cvid_set(struct qca_ppe_priv *priv,
 				  int port, u16 vid, bool enable)
 {
-	ppe_m32(&priv->ppe, PPE_PORT_DEF_VID(port),
-		PPE_PORT_DEF_CVID | PPE_PORT_DEF_CVID_EN,
-		enable ? FIELD_PREP(PPE_PORT_DEF_CVID, vid) |
-			 PPE_PORT_DEF_CVID_EN : 0);
+	regmap_update_bits(priv->regmap, PPE_PORT_DEF_VID(port),
+			   PPE_PORT_DEF_CVID | PPE_PORT_DEF_CVID_EN,
+			   enable ? FIELD_PREP(PPE_PORT_DEF_CVID, vid) |
+			   PPE_PORT_DEF_CVID_EN : 0);
 }
 
 static struct qca_ppe_vlan_entry *
@@ -169,22 +169,22 @@ int qca_ppe_vlan_setup(struct dsa_switch *ds)
 		u32 mode = dsa_is_user_port(ds, i) ?
 			   PPE_EG_UNMODIFIED : PPE_EG_UNTOUCHED;
 
-		ppe_m32(&priv->ppe, PPE_PORT_EG_VLAN(i),
-			PPE_PORT_EG_VLAN_CTAG_MODE |
-			PPE_PORT_EG_VLAN_STAG_MODE,
-			FIELD_PREP(PPE_PORT_EG_VLAN_CTAG_MODE, mode) |
-			FIELD_PREP(PPE_PORT_EG_VLAN_STAG_MODE, mode));
+		regmap_update_bits(priv->regmap, PPE_PORT_EG_VLAN(i),
+				   PPE_PORT_EG_VLAN_CTAG_MODE |
+				   PPE_PORT_EG_VLAN_STAG_MODE,
+				   FIELD_PREP(PPE_PORT_EG_VLAN_CTAG_MODE, mode) |
+				   FIELD_PREP(PPE_PORT_EG_VLAN_STAG_MODE, mode));
 	}
 
 	for (i = 0; i < PPE_VSI_MAX; i++) {
-		ppe_w32(&priv->ppe, PPE_EG_VSI_TAG(i),
-			PPE_EG_VSI_TAG_UNMODIFIED);
+		regmap_write(priv->regmap, PPE_EG_VSI_TAG(i),
+			     PPE_EG_VSI_TAG_UNMODIFIED);
 		priv->vlans[i].xlt_idx = -1;
 		priv->vlans[i].xlt_pvid_idx = -1;
 	}
 
-	ppe_m32(&priv->ppe, PPE_EG_BRIDGE_CONFIG,
-		PPE_EG_L2_EDIT_EN, PPE_EG_L2_EDIT_EN);
+	regmap_update_bits(priv->regmap, PPE_EG_BRIDGE_CONFIG,
+			   PPE_EG_L2_EDIT_EN, PPE_EG_L2_EDIT_EN);
 
 	ds->configure_vlan_while_not_filtering = false;
 
@@ -197,13 +197,14 @@ int qca_ppe_port_vlan_filtering(struct dsa_switch *ds, int port,
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 
-	ppe_m32(&priv->ppe, PPE_PORT_EG_VLAN(port),
-		PPE_PORT_EG_VSI_TAG_EN,
-		vlan_filtering ? PPE_PORT_EG_VSI_TAG_EN : 0);
+	regmap_update_bits(priv->regmap, PPE_PORT_EG_VLAN(port),
+			   PPE_PORT_EG_VSI_TAG_EN,
+			   vlan_filtering ? PPE_PORT_EG_VSI_TAG_EN : 0);
 
-	ppe_m32(&priv->ppe, PPE_PORT_VLAN_CFG(port), PPE_VLAN_XLT_MISS_FWD,
-		vlan_filtering ?
-		FIELD_PREP(PPE_VLAN_XLT_MISS_FWD, PPE_XLT_MISS_FWD_DROP) : 0);
+	regmap_update_bits(priv->regmap, PPE_PORT_VLAN_CFG(port),
+			   PPE_VLAN_XLT_MISS_FWD,
+			   vlan_filtering ?
+			   FIELD_PREP(PPE_VLAN_XLT_MISS_FWD, PPE_XLT_MISS_FWD_DROP) : 0);
 
 	return 0;
 }

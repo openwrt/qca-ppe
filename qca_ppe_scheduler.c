@@ -340,9 +340,9 @@ const struct bm_tdm_entry hppe_bm_tdm[] = {
 	{ TDM_PORT_FAB_1, TDM_DIR_EGRESS },
 };
 
-static void ppe_tdm_init(struct qca_ppe *ppe)
+static void ppe_tdm_init(struct qca_ppe_priv *priv)
 {
-	const struct ppe_data *data = ppe->data;
+	const struct ppe_data *data = priv->data;
 	const struct psch_tdm_entry *psch;
 	const struct bm_tdm_entry *bm;
 	int psch_num, bm_num;
@@ -376,43 +376,43 @@ static void ppe_tdm_init(struct qca_ppe *ppe)
 	for (i = 0; i < psch_num; i++) {
 		u8 bmp = ~(BIT(prev_de_port) | BIT(psch[i].de_port));
 
-		ppe_w32(ppe, PPE_TM_PSCH_TDM(i),
-			FIELD_PREP(PPE_PSCH_ENS_PORT_BMP, bmp) |
-			FIELD_PREP(PPE_PSCH_ENS_PORT, psch[i].en_port) |
-			FIELD_PREP(PPE_PSCH_DES_PORT, psch[i].de_port));
+		regmap_write(priv->regmap, PPE_TM_PSCH_TDM(i),
+			     FIELD_PREP(PPE_PSCH_ENS_PORT_BMP, bmp) |
+			     FIELD_PREP(PPE_PSCH_ENS_PORT, psch[i].en_port) |
+			     FIELD_PREP(PPE_PSCH_DES_PORT, psch[i].de_port));
 
 		prev_de_port = BIT(psch[i].de_port);
 	}
 
-	ppe_w32(ppe, PPE_TM_TDM_DEPTH,
-		FIELD_PREP(PPE_TM_TDM_DEPTH_MASK, psch_num));
+	regmap_write(priv->regmap, PPE_TM_TDM_DEPTH,
+		     FIELD_PREP(PPE_TM_TDM_DEPTH_MASK, psch_num));
 
 	for (i = 0; i < bm_num; i++)
-		ppe_w32(ppe, PPE_PRX_TDM_CFG(i),
-			FIELD_PREP(PPE_TDM_PORT_NUM, bm[i].port) |
-			FIELD_PREP(PPE_TDM_DIR, bm[i].dir) |
-			PPE_TDM_VALID);
+		regmap_write(priv->regmap, PPE_PRX_TDM_CFG(i),
+			     FIELD_PREP(PPE_TDM_PORT_NUM, bm[i].port) |
+			     FIELD_PREP(PPE_TDM_DIR, bm[i].dir) |
+			     PPE_TDM_VALID);
 
-	ppe_w32(ppe, PPE_PRX_TDM_CTRL,
-		FIELD_PREP(PPE_TDM_DEPTH, bm_num) |
-		PPE_TDM_EN);
+	regmap_write(priv->regmap, PPE_PRX_TDM_CTRL,
+		     FIELD_PREP(PPE_TDM_DEPTH, bm_num) |
+		     PPE_TDM_EN);
 }
 
-static void ppe_bm_init(struct qca_ppe *ppe)
+static void ppe_bm_init(struct qca_ppe_priv *priv)
 {
-	const struct ppe_data *d = ppe->data;
+	const struct ppe_data *d = priv->data;
 	int i;
 
 	for (i = 0; i < PPE_BM_PORTS; i++) {
 		bool fc_en = (i < PPE_BM_PHY_START || i > d->bm_phy_end);
 
-		ppe_w32(ppe, PPE_BM_FC_MODE(i),
-			fc_en ? PPE_BM_FC_EN : 0);
-		ppe_w32(ppe, PPE_BM_GROUP_ID(i), 0);
+		regmap_write(priv->regmap, PPE_BM_FC_MODE(i),
+			     fc_en ? PPE_BM_FC_EN : 0);
+		regmap_write(priv->regmap, PPE_BM_GROUP_ID(i), 0);
 	}
 
-	ppe_w32(ppe, PPE_BM_SHARED_GRP(0),
-		FIELD_PREP(PPE_BM_SHARED_LIMIT, d->bm_group_buf));
+	regmap_write(priv->regmap, PPE_BM_SHARED_GRP(0),
+		     FIELD_PREP(PPE_BM_SHARED_LIMIT, d->bm_group_buf));
 
 	for (i = 0; i < PPE_BM_PORTS; i++) {
 		u16 react;
@@ -432,17 +432,17 @@ static void ppe_bm_init(struct qca_ppe *ppe)
 		     FIELD_PREP(PPE_BM_WEIGHT, 4) |
 		     PPE_BM_DYNAMIC;
 
-		ppe_w32(ppe, PPE_BM_PORT_FC_W0(i), w0);
-		ppe_w32(ppe, PPE_BM_PORT_FC_W1(i), w1);
+		regmap_write(priv->regmap, PPE_BM_PORT_FC_W0(i), w0);
+		regmap_write(priv->regmap, PPE_BM_PORT_FC_W1(i), w1);
 	}
 }
 
-static void ppe_qm_map_set(struct qca_ppe *ppe, u32 index,
+static void ppe_qm_map_set(struct qca_ppe_priv *priv, u32 index,
 			    u8 queue_base, u8 profile)
 {
-	ppe_w32(ppe, PPE_QM_UCAST_MAP(index),
-		FIELD_PREP(PPE_QM_PROFILE_ID, profile) |
-		FIELD_PREP(PPE_QM_QUEUE_ID, queue_base));
+	regmap_write(priv->regmap, PPE_QM_UCAST_MAP(index),
+		     FIELD_PREP(PPE_QM_PROFILE_ID, profile) |
+		     FIELD_PREP(PPE_QM_QUEUE_ID, queue_base));
 }
 
 static const u8 port_queue_base[PPE_NUM_PORTS] = {
@@ -453,20 +453,20 @@ static const u8 port_l0_cdrr_num[PPE_NUM_PORTS] = {
 	48, 16, 16, 16, 16, 16, 16, 16,
 };
 
-static void ppe_qm_init(struct qca_ppe *ppe)
+static void ppe_qm_init(struct qca_ppe_priv *priv)
 {
-	const struct ppe_data *d = ppe->data;
+	const struct ppe_data *d = priv->data;
 	int i, pri;
 
-	ppe_qm_map_set(ppe, QM_SERVICE_CODE_OFFSET + 2, 8, 0);
-	ppe_qm_map_set(ppe, QM_SERVICE_CODE_OFFSET + 3, 128, 8);
-	ppe_qm_map_set(ppe, QM_SERVICE_CODE_OFFSET + 4, 128, 8);
-	ppe_qm_map_set(ppe, QM_SERVICE_CODE_OFFSET + 5, 0, 0);
-	ppe_qm_map_set(ppe, QM_SERVICE_CODE_OFFSET + 6, 8, 0);
-	ppe_qm_map_set(ppe, QM_SERVICE_CODE_OFFSET + 7, 240, 0);
+	ppe_qm_map_set(priv, QM_SERVICE_CODE_OFFSET + 2, 8, 0);
+	ppe_qm_map_set(priv, QM_SERVICE_CODE_OFFSET + 3, 128, 8);
+	ppe_qm_map_set(priv, QM_SERVICE_CODE_OFFSET + 4, 128, 8);
+	ppe_qm_map_set(priv, QM_SERVICE_CODE_OFFSET + 5, 0, 0);
+	ppe_qm_map_set(priv, QM_SERVICE_CODE_OFFSET + 6, 8, 0);
+	ppe_qm_map_set(priv, QM_SERVICE_CODE_OFFSET + 7, 240, 0);
 
 	for (i = 0; i < PPE_NUM_PORTS; i++)
-		ppe_qm_map_set(ppe, QM_VP_PORT_OFFSET + i,
+		ppe_qm_map_set(priv, QM_VP_PORT_OFFSET + i,
 				port_queue_base[i], i);
 
 	for (i = 0; i < PPE_NUM_PORTS; i++) {
@@ -481,77 +481,80 @@ static void ppe_qm_init(struct qca_ppe *ppe)
 
 			if (i == 0) {
 				profile = 0;
-				ppe_w32(ppe, PPE_QM_UCAST_PRI_MAP(profile * 16 + pri),
-					FIELD_PREP(PPE_QM_PRI_CLASS, cls));
+				regmap_write(priv->regmap,
+					     PPE_QM_UCAST_PRI_MAP(profile * 16 + pri),
+					     FIELD_PREP(PPE_QM_PRI_CLASS, cls));
 				profile = 15;
-				ppe_w32(ppe, PPE_QM_UCAST_PRI_MAP(profile * 16 + pri),
-					FIELD_PREP(PPE_QM_PRI_CLASS, cls));
+				regmap_write(priv->regmap,
+					     PPE_QM_UCAST_PRI_MAP(profile * 16 + pri),
+					     FIELD_PREP(PPE_QM_PRI_CLASS, cls));
 			} else {
-				ppe_w32(ppe, PPE_QM_UCAST_PRI_MAP(i * 16 + pri),
-					FIELD_PREP(PPE_QM_PRI_CLASS, cls));
+				regmap_write(priv->regmap,
+					     PPE_QM_UCAST_PRI_MAP(i * 16 + pri),
+					     FIELD_PREP(PPE_QM_PRI_CLASS, cls));
 			}
 		}
 	}
 
 	for (i = 0; i < 256; i++) {
-		ppe_w32(ppe, PPE_QM_UCAST_HASH_MAP(15 * 256 + i), 0);
-		ppe_w32(ppe, PPE_QM_UCAST_HASH_MAP(14 * 256 + i), 0);
+		regmap_write(priv->regmap, PPE_QM_UCAST_HASH_MAP(15 * 256 + i), 0);
+		regmap_write(priv->regmap, PPE_QM_UCAST_HASH_MAP(14 * 256 + i), 0);
 	}
 
-	ppe_qm_map_set(ppe, QM_CPU_CODE_OFFSET + 101,
+	ppe_qm_map_set(priv, QM_CPU_CODE_OFFSET + 101,
 			port_queue_base[0] + 0, 0);
 
 	for (i = 0; i < PPE_MAX_SERVICE_CODES; i++) {
 		u32 idx = QM_SERVICE_CODE_OFFSET + (1 << 8) + i;
 
 		if (i == 2 || i == 6)
-			ppe_qm_map_set(ppe, idx, 8, 0);
+			ppe_qm_map_set(priv, idx, 8, 0);
 		else if (i == 3 || i == 4)
-			ppe_qm_map_set(ppe, idx, 128, 8);
+			ppe_qm_map_set(priv, idx, 128, 8);
 		else
-			ppe_qm_map_set(ppe, idx, 4, 0);
+			ppe_qm_map_set(priv, idx, 4, 0);
 	}
 
 	for (i = 0; i < PPE_MAX_CPU_CODES; i++)
-		ppe_qm_map_set(ppe, QM_CPU_CODE_OFFSET + (1 << 8) + i, 4, 0);
+		ppe_qm_map_set(priv, QM_CPU_CODE_OFFSET + (1 << 8) + i, 4, 0);
 
 	for (i = 0; i < PPE_NUM_PORTS; i++)
-		ppe_qm_map_set(ppe, QM_VP_PORT_OFFSET + (1 << 8) + i,
+		ppe_qm_map_set(priv, QM_VP_PORT_OFFSET + (1 << 8) + i,
 				port_queue_base[i], i);
 
 	for (i = PPE_NUM_PORTS; i < PPE_MAX_VPORT; i++)
-		ppe_qm_map_set(ppe, QM_VP_PORT_OFFSET + (1 << 8) + i, 4, 0);
+		ppe_qm_map_set(priv, QM_VP_PORT_OFFSET + (1 << 8) + i, 4, 0);
 
 	for (i = 0; i < PPE_L0_UCAST_QUEUES; i++) {
-		ppe_w32(ppe, PPE_QM_AC_UNI_W0(i),
-			PPE_AC_EN |
-			PPE_AC_SHARED_DYNAMIC |
-			FIELD_PREP(PPE_AC_SHARED_WEIGHT, 4) |
-			FIELD_PREP(PPE_AC_SHARED_CEILING, d->qm_ceiling));
-		ppe_w32(ppe, PPE_QM_AC_UNI_W1(i), 0);
-		ppe_w32(ppe, PPE_QM_AC_UNI_W2(i), 0);
-		ppe_w32(ppe, PPE_QM_AC_UNI_W3(i),
-			FIELD_PREP(PPE_AC_GRN_RESUME_OFF, 36));
+		regmap_write(priv->regmap, PPE_QM_AC_UNI_W0(i),
+			     PPE_AC_EN |
+			     PPE_AC_SHARED_DYNAMIC |
+			     FIELD_PREP(PPE_AC_SHARED_WEIGHT, 4) |
+			     FIELD_PREP(PPE_AC_SHARED_CEILING, d->qm_ceiling));
+		regmap_write(priv->regmap, PPE_QM_AC_UNI_W1(i), 0);
+		regmap_write(priv->regmap, PPE_QM_AC_UNI_W2(i), 0);
+		regmap_write(priv->regmap, PPE_QM_AC_UNI_W3(i),
+			     FIELD_PREP(PPE_AC_GRN_RESUME_OFF, 36));
 	}
 
 	for (i = 0; i < PPE_L0_QUEUES - PPE_L0_UCAST_QUEUES; i++) {
-		ppe_w32(ppe, PPE_QM_AC_MUL_W0(i),
-			PPE_AC_MUL_EN |
-			FIELD_PREP(PPE_AC_MUL_CEILING, d->qm_ceiling) |
-			FIELD_PREP(PPE_AC_MUL_GRN_MAX_LO, d->qm_green_max & 0x1f));
-		ppe_w32(ppe, PPE_QM_AC_MUL_W1(i),
-			FIELD_PREP(PPE_AC_MUL_GRN_MAX_HI, d->qm_green_max >> 5));
-		ppe_w32(ppe, PPE_QM_AC_MUL_W2(i),
-			FIELD_PREP(PPE_AC_MUL_GRN_RESUME_HI, 36));
+		regmap_write(priv->regmap, PPE_QM_AC_MUL_W0(i),
+			     PPE_AC_MUL_EN |
+			     FIELD_PREP(PPE_AC_MUL_CEILING, d->qm_ceiling) |
+			     FIELD_PREP(PPE_AC_MUL_GRN_MAX_LO, d->qm_green_max & 0x1f));
+		regmap_write(priv->regmap, PPE_QM_AC_MUL_W1(i),
+			     FIELD_PREP(PPE_AC_MUL_GRN_MAX_HI, d->qm_green_max >> 5));
+		regmap_write(priv->regmap, PPE_QM_AC_MUL_W2(i),
+			     FIELD_PREP(PPE_AC_MUL_GRN_RESUME_HI, 36));
 	}
 
-	ppe_w32(ppe, PPE_QM_AC_GRP_W0(0), 0);
-	ppe_w32(ppe, PPE_QM_AC_GRP_W1(0),
-		FIELD_PREP(PPE_AC_GRP_LIMIT, d->qm_total_buf));
-	ppe_w32(ppe, PPE_QM_AC_GRP_W2(0), 0);
+	regmap_write(priv->regmap, PPE_QM_AC_GRP_W0(0), 0);
+	regmap_write(priv->regmap, PPE_QM_AC_GRP_W1(0),
+		     FIELD_PREP(PPE_AC_GRP_LIMIT, d->qm_total_buf));
+	regmap_write(priv->regmap, PPE_QM_AC_GRP_W2(0), 0);
 
-	ppe_m32(ppe, PPE_EG_BRIDGE_CONFIG, PPE_EG_QUEUE_CNT_EN,
-		PPE_EG_QUEUE_CNT_EN);
+	regmap_update_bits(priv->regmap, PPE_EG_BRIDGE_CONFIG,
+			   PPE_EG_QUEUE_CNT_EN, PPE_EG_QUEUE_CNT_EN);
 }
 
 struct l1_cfg {
@@ -580,7 +583,7 @@ static const struct l1_cfg l1_cfg[] = {
 	{ 61, 7, 1, 33 },
 };
 
-static void ppe_l1_scheduler_init(struct qca_ppe *ppe)
+static void ppe_l1_scheduler_init(struct qca_ppe_priv *priv)
 {
 	int i;
 
@@ -588,22 +591,22 @@ static void ppe_l1_scheduler_init(struct qca_ppe *ppe)
 		const struct l1_cfg *c = &l1_cfg[i];
 		u32 sp_idx;
 
-		ppe_w32(ppe, PPE_TM_L1_FLOW_MAP(c->index),
-			FIELD_PREP(PPE_L1_SP_ID, c->port) |
-			FIELD_PREP(PPE_L1_C_PRI, c->pri) |
-			FIELD_PREP(PPE_L1_E_PRI, c->pri) |
-			FIELD_PREP(PPE_L1_C_DRR_WT, 1) |
-			FIELD_PREP(PPE_L1_E_DRR_WT, 1));
+		regmap_write(priv->regmap, PPE_TM_L1_FLOW_MAP(c->index),
+			     FIELD_PREP(PPE_L1_SP_ID, c->port) |
+			     FIELD_PREP(PPE_L1_C_PRI, c->pri) |
+			     FIELD_PREP(PPE_L1_E_PRI, c->pri) |
+			     FIELD_PREP(PPE_L1_C_DRR_WT, 1) |
+			     FIELD_PREP(PPE_L1_E_DRR_WT, 1));
 
 		sp_idx = c->port * 8 + c->pri;
-		ppe_w32(ppe, PPE_TM_L1_C_SP(sp_idx),
-			FIELD_PREP(PPE_L1_SP_DRR_ID, c->drr));
+		regmap_write(priv->regmap, PPE_TM_L1_C_SP(sp_idx),
+			     FIELD_PREP(PPE_L1_SP_DRR_ID, c->drr));
 
-		ppe_w32(ppe, PPE_TM_L1_E_SP(sp_idx),
-			FIELD_PREP(PPE_L1_SP_DRR_ID, c->drr));
+		regmap_write(priv->regmap, PPE_TM_L1_E_SP(sp_idx),
+			     FIELD_PREP(PPE_L1_SP_DRR_ID, c->drr));
 
-		ppe_w32(ppe, PPE_TM_L1_PORT_MAP(c->index),
-			FIELD_PREP(PPE_L1_PORT_NUM, c->port));
+		regmap_write(priv->regmap, PPE_TM_L1_PORT_MAP(c->index),
+			     FIELD_PREP(PPE_L1_PORT_NUM, c->port));
 	}
 }
 
@@ -632,27 +635,27 @@ static const struct l0_cfg l0_port0[] = {
 	{ 263, 0, 0, 3, 3, 3, 3 },
 };
 
-static void ppe_l0_entry_write(struct qca_ppe *ppe, const struct l0_cfg *c)
+static void ppe_l0_entry_write(struct qca_ppe_priv *priv, const struct l0_cfg *c)
 {
 	u32 sp_idx;
 
-	ppe_w32(ppe, PPE_TM_L0_FLOW_MAP(c->queue),
-		FIELD_PREP(PPE_L0_SP_ID, c->sp) |
-		FIELD_PREP(PPE_L0_C_PRI, c->cpri) |
-		FIELD_PREP(PPE_L0_E_PRI, c->epri) |
-		FIELD_PREP(PPE_L0_C_DRR_WT, 1) |
-		FIELD_PREP(PPE_L0_E_DRR_WT, 1));
+	regmap_write(priv->regmap, PPE_TM_L0_FLOW_MAP(c->queue),
+		     FIELD_PREP(PPE_L0_SP_ID, c->sp) |
+		     FIELD_PREP(PPE_L0_C_PRI, c->cpri) |
+		     FIELD_PREP(PPE_L0_E_PRI, c->epri) |
+		     FIELD_PREP(PPE_L0_C_DRR_WT, 1) |
+		     FIELD_PREP(PPE_L0_E_DRR_WT, 1));
 
 	sp_idx = c->sp * 8 + c->cpri;
-	ppe_w32(ppe, PPE_TM_L0_C_SP(sp_idx),
-		FIELD_PREP(PPE_L0_SP_DRR_ID, c->cdrr));
+	regmap_write(priv->regmap, PPE_TM_L0_C_SP(sp_idx),
+		     FIELD_PREP(PPE_L0_SP_DRR_ID, c->cdrr));
 
 	sp_idx = c->sp * 8 + c->epri;
-	ppe_w32(ppe, PPE_TM_L0_E_SP(sp_idx),
-		FIELD_PREP(PPE_L0_SP_DRR_ID, c->edrr));
+	regmap_write(priv->regmap, PPE_TM_L0_E_SP(sp_idx),
+		     FIELD_PREP(PPE_L0_SP_DRR_ID, c->edrr));
 
-	ppe_w32(ppe, PPE_TM_L0_PORT_MAP(c->queue),
-		FIELD_PREP(PPE_L0_PORT_NUM, c->port));
+	regmap_write(priv->regmap, PPE_TM_L0_PORT_MAP(c->queue),
+		     FIELD_PREP(PPE_L0_PORT_NUM, c->port));
 }
 
 struct port_l0_params {
@@ -675,12 +678,12 @@ static const struct port_l0_params port_l0[] = {
 	{ 240, 16, 296, 1, 60, 144, 7 },
 };
 
-static void ppe_l0_scheduler_init(struct qca_ppe *ppe)
+static void ppe_l0_scheduler_init(struct qca_ppe_priv *priv)
 {
 	int i, j;
 
 	for (i = 0; i < ARRAY_SIZE(l0_port0); i++)
-		ppe_l0_entry_write(ppe, &l0_port0[i]);
+		ppe_l0_entry_write(priv, &l0_port0[i]);
 
 	for (i = 0; i < ARRAY_SIZE(port_l0); i++) {
 		const struct port_l0_params *p = &port_l0[i];
@@ -700,34 +703,34 @@ static void ppe_l0_scheduler_init(struct qca_ppe *ppe)
 					.edrr = p->cdrr_base + j,
 				};
 
-				ppe_l0_entry_write(ppe, &c);
+				ppe_l0_entry_write(priv, &c);
 			}
 		}
 	}
 }
 
-static void ppe_edma_ring_map_init(struct qca_ppe *ppe)
+static void ppe_edma_ring_map_init(struct qca_ppe_priv *priv)
 {
 	int i;
 
-	ppe_w32(ppe, PPE_TM_RING_Q_MAP(0), 0xf);
+	regmap_write(priv->regmap, PPE_TM_RING_Q_MAP(0), 0xf);
 	for (i = 1; i < 10; i++)
-		ppe_w32(ppe, PPE_TM_RING_Q_MAP(0) + i * 4, 0);
+		regmap_write(priv->regmap, PPE_TM_RING_Q_MAP(0) + i * 4, 0);
 
-	ppe_w32(ppe, PPE_TM_RING_Q_MAP(3), 0xf0);
+	regmap_write(priv->regmap, PPE_TM_RING_Q_MAP(3), 0xf0);
 	for (i = 1; i < 10; i++)
-		ppe_w32(ppe, PPE_TM_RING_Q_MAP(3) + i * 4, 0);
+		regmap_write(priv->regmap, PPE_TM_RING_Q_MAP(3) + i * 4, 0);
 
-	ppe_w32(ppe, PPE_TM_RING_Q_MAP(1), 0xf00);
+	regmap_write(priv->regmap, PPE_TM_RING_Q_MAP(1), 0xf00);
 	for (i = 1; i < 10; i++)
-		ppe_w32(ppe, PPE_TM_RING_Q_MAP(1) + i * 4, 0);
+		regmap_write(priv->regmap, PPE_TM_RING_Q_MAP(1) + i * 4, 0);
 
 	for (i = 0; i < 10; i++)
-		ppe_w32(ppe, PPE_TM_RING_Q_MAP(2) + i * 4, 0);
-	ppe_w32(ppe, PPE_TM_RING_Q_MAP(2) + 4 * 4, 0xffff);
+		regmap_write(priv->regmap, PPE_TM_RING_Q_MAP(2) + i * 4, 0);
+	regmap_write(priv->regmap, PPE_TM_RING_Q_MAP(2) + 4 * 4, 0xffff);
 }
 
-static void ppe_qos_init(struct qca_ppe *ppe)
+static void ppe_qos_init(struct qca_ppe_priv *priv)
 {
 	int i;
 	u32 qos_bits;
@@ -738,12 +741,12 @@ static void ppe_qos_init(struct qca_ppe *ppe)
 		   FIELD_PREP(PPE_QOS_ACL_PREC, 2);
 
 	for (i = 0; i < PPE_NUM_PORTS; i++)
-		ppe_m32(ppe, PPE_PRX_MRU_MTU_W1(i),
-			PPE_QOS_PCP_GRP | PPE_QOS_DSCP_GRP |
-			PPE_QOS_PREHEADER_PREC | PPE_QOS_PCP_PREC |
-			PPE_QOS_DSCP_PREC | PPE_QOS_FLOW_PREC |
-			PPE_QOS_ACL_PREC,
-			qos_bits);
+		regmap_update_bits(priv->regmap, PPE_PRX_MRU_MTU_W1(i),
+				   PPE_QOS_PCP_GRP | PPE_QOS_DSCP_GRP |
+				   PPE_QOS_PREHEADER_PREC | PPE_QOS_PCP_PREC |
+				   PPE_QOS_DSCP_PREC | PPE_QOS_FLOW_PREC |
+				   PPE_QOS_ACL_PREC,
+				   qos_bits);
 }
 
 const struct psch_tdm_data cppe_psch_tdm_data = {
@@ -766,13 +769,13 @@ const struct bm_tdm_data hppe_bm_tdm_data = {
 	.num = ARRAY_SIZE(hppe_bm_tdm),
 };
 
-void ppe_scheduler_init(struct qca_ppe *ppe)
+void ppe_scheduler_init(struct qca_ppe_priv *priv)
 {
-	ppe_tdm_init(ppe);
-	ppe_bm_init(ppe);
-	ppe_qm_init(ppe);
-	ppe_l1_scheduler_init(ppe);
-	ppe_l0_scheduler_init(ppe);
-	ppe_edma_ring_map_init(ppe);
-	ppe_qos_init(ppe);
+	ppe_tdm_init(priv);
+	ppe_bm_init(priv);
+	ppe_qm_init(priv);
+	ppe_l1_scheduler_init(priv);
+	ppe_l0_scheduler_init(priv);
+	ppe_edma_ring_map_init(priv);
+	ppe_qos_init(priv);
 }

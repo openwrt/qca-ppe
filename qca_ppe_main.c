@@ -21,23 +21,24 @@ static void ppe_port_mac_set(struct qca_ppe_priv *priv, int port,
 	int gmac = port - 1;
 	u32 val = 0;
 
-	if (port < 1 || port >= priv->ppe.data->num_ports)
+	if (port < 1 || port >= priv->data->num_ports)
 		return;
 
 	if (tx_en)
 		val |= PPE_MAC_ENABLE_TXMAC_EN;
 	if (rx_en)
 		val |= PPE_MAC_ENABLE_RXMAC_EN;
-	ppe_m32(&priv->ppe, PPE_GMAC_ENABLE(gmac),
-		PPE_MAC_ENABLE_TXMAC_EN | PPE_MAC_ENABLE_RXMAC_EN, val);
+	regmap_update_bits(priv->regmap, PPE_GMAC_ENABLE(gmac),
+			   PPE_MAC_ENABLE_TXMAC_EN | PPE_MAC_ENABLE_RXMAC_EN,
+			   val);
 }
 
 static void ppe_port_bridge_txmac_set(struct qca_ppe_priv *priv, int port,
 				      bool enable)
 {
-	ppe_m32(&priv->ppe, PPE_PORT_BRIDGE_CTRL(port),
-		PPE_PORT_BRIDGE_CTRL_TXMAC_EN,
-		enable ? PPE_PORT_BRIDGE_CTRL_TXMAC_EN : 0);
+	regmap_update_bits(priv->regmap, PPE_PORT_BRIDGE_CTRL(port),
+			   PPE_PORT_BRIDGE_CTRL_TXMAC_EN,
+			   enable ? PPE_PORT_BRIDGE_CTRL_TXMAC_EN : 0);
 }
 
 static void ppe_gmac_link_up(struct qca_ppe_priv *priv, int port,
@@ -47,7 +48,7 @@ static void ppe_gmac_link_up(struct qca_ppe_priv *priv, int port,
 	int gmac = port - 1;
 	u32 val;
 
-	val = ppe_r32(&priv->ppe, PPE_GMAC_SPEED(gmac));
+	regmap_read(priv->regmap, PPE_GMAC_SPEED(gmac), &val);
 	val &= ~PPE_GMAC_SPEED_MASK;
 	switch (speed) {
 	case SPEED_100:
@@ -58,7 +59,7 @@ static void ppe_gmac_link_up(struct qca_ppe_priv *priv, int port,
 		val |= FIELD_PREP(PPE_GMAC_SPEED_MASK, 2);
 		break;
 	}
-	ppe_w32(&priv->ppe, PPE_GMAC_SPEED(gmac), val);
+	regmap_write(priv->regmap, PPE_GMAC_SPEED(gmac), val);
 
 	val = 0;
 	if (duplex == DUPLEX_FULL)
@@ -67,22 +68,22 @@ static void ppe_gmac_link_up(struct qca_ppe_priv *priv, int port,
 		val |= PPE_MAC_ENABLE_TX_FLOW_EN;
 	if (rx_pause)
 		val |= PPE_MAC_ENABLE_RX_FLOW_EN;
-	ppe_m32(&priv->ppe, PPE_GMAC_ENABLE(gmac),
-		PPE_MAC_ENABLE_DUPLEX | PPE_MAC_ENABLE_TX_FLOW_EN |
-		PPE_MAC_ENABLE_RX_FLOW_EN, val);
+	regmap_update_bits(priv->regmap, PPE_GMAC_ENABLE(gmac),
+			   PPE_MAC_ENABLE_DUPLEX | PPE_MAC_ENABLE_TX_FLOW_EN |
+			   PPE_MAC_ENABLE_RX_FLOW_EN, val);
 }
 
 static void ppe_port_cnt_enable(struct qca_ppe_priv *priv, int port)
 {
-	ppe_m32(&priv->ppe, PPE_MRU_MTU_CTRL(port) + 4,
-		PPE_MRU_MTU_CTRL_RX_CNT_EN | PPE_MRU_MTU_CTRL_TX_CNT_EN,
-		PPE_MRU_MTU_CTRL_RX_CNT_EN | PPE_MRU_MTU_CTRL_TX_CNT_EN);
+	regmap_update_bits(priv->regmap, PPE_MRU_MTU_CTRL(port) + 4,
+			   PPE_MRU_MTU_CTRL_RX_CNT_EN | PPE_MRU_MTU_CTRL_TX_CNT_EN,
+			   PPE_MRU_MTU_CTRL_RX_CNT_EN | PPE_MRU_MTU_CTRL_TX_CNT_EN);
 
-	ppe_m32(&priv->ppe, PPE_MC_MTU_CTRL(port),
-		PPE_MC_MTU_CTRL_TX_CNT_EN, PPE_MC_MTU_CTRL_TX_CNT_EN);
+	regmap_update_bits(priv->regmap, PPE_MC_MTU_CTRL(port),
+			   PPE_MC_MTU_CTRL_TX_CNT_EN, PPE_MC_MTU_CTRL_TX_CNT_EN);
 
-	ppe_m32(&priv->ppe, PPE_PORT_EG_VLAN(port),
-		PPE_PORT_EG_VLAN_TX_CNT_EN, PPE_PORT_EG_VLAN_TX_CNT_EN);
+	regmap_update_bits(priv->regmap, PPE_PORT_EG_VLAN(port),
+			   PPE_PORT_EG_VLAN_TX_CNT_EN, PPE_PORT_EG_VLAN_TX_CNT_EN);
 }
 
 int ppe_vsi_alloc(struct qca_ppe_priv *priv)
@@ -95,17 +96,17 @@ int ppe_vsi_alloc(struct qca_ppe_priv *priv)
 
 	set_bit(vsi, priv->vsi_bitmap);
 
-	ppe_w32(&priv->ppe, PPE_VSI_TBL(vsi), 0);
-	ppe_w32(&priv->ppe, PPE_VSI_TBL(vsi) + 4,
-		PPE_VSI_TBL_NEW_ADDR_LRN_EN | PPE_VSI_TBL_STA_MOVE_LRN_EN);
+	regmap_write(priv->regmap, PPE_VSI_TBL(vsi), 0);
+	regmap_write(priv->regmap, PPE_VSI_TBL(vsi) + 4,
+		     PPE_VSI_TBL_NEW_ADDR_LRN_EN | PPE_VSI_TBL_STA_MOVE_LRN_EN);
 
 	return vsi;
 }
 
 void ppe_vsi_free(struct qca_ppe_priv *priv, u32 vsi)
 {
-	ppe_w32(&priv->ppe, PPE_VSI_TBL(vsi), 0);
-	ppe_w32(&priv->ppe, PPE_VSI_TBL(vsi) + 4, 0);
+	regmap_write(priv->regmap, PPE_VSI_TBL(vsi), 0);
+	regmap_write(priv->regmap, PPE_VSI_TBL(vsi) + 4, 0);
 	clear_bit(vsi, priv->vsi_bitmap);
 }
 
@@ -118,8 +119,8 @@ void ppe_vsi_member_set(struct qca_ppe_priv *priv, u32 vsi,
 	      FIELD_PREP(PPE_VSI_TBL_UUC, portmask) |
 	      FIELD_PREP(PPE_VSI_TBL_UMC, portmask) |
 	      FIELD_PREP(PPE_VSI_TBL_BC, portmask);
-	ppe_w32(&priv->ppe, PPE_VSI_TBL(vsi), val);
-	ppe_w32(&priv->ppe, PPE_VSI_TBL(vsi) + 4,
+	regmap_write(priv->regmap, PPE_VSI_TBL(vsi), val);
+	regmap_write(priv->regmap, PPE_VSI_TBL(vsi) + 4,
 		PPE_VSI_TBL_NEW_ADDR_LRN_EN | PPE_VSI_TBL_STA_MOVE_LRN_EN);
 }
 
@@ -127,13 +128,13 @@ static void ppe_port_vsi_set(struct qca_ppe_priv *priv, int port, u32 vsi)
 {
 	u32 val;
 
-	val = ppe_r32(&priv->ppe, PPE_L3_VP_PORT_TBL(port) + 4);
+	regmap_read(priv->regmap, PPE_L3_VP_PORT_TBL(port) + 4, &val);
 	val &= ~(PPE_L3_VP_VSI_VALID | PPE_L3_VP_VSI);
 	if (vsi != PPE_VSI_INVALID) {
 		val |= PPE_L3_VP_VSI_VALID;
 		val |= FIELD_PREP(PPE_L3_VP_VSI, vsi);
 	}
-	ppe_w32(&priv->ppe, PPE_L3_VP_PORT_TBL(port) + 4, val);
+	regmap_write(priv->regmap, PPE_L3_VP_PORT_TBL(port) + 4, val);
 }
 
 static int ppe_fdb_op_wait(struct qca_ppe_priv *priv, u32 rslt_reg,
@@ -143,7 +144,7 @@ static int ppe_fdb_op_wait(struct qca_ppe_priv *priv, u32 rslt_reg,
 	int i;
 
 	for (i = 0; i < 100; i++) {
-		val = ppe_r32(&priv->ppe, rslt_reg);
+		regmap_read(priv->regmap, rslt_reg, &val);
 		if (FIELD_GET(PPE_FDB_RSLT_CMD_ID, val) == cmd_id)
 			return 0;
 		udelay(1);
@@ -178,12 +179,12 @@ static int ppe_fdb_op(struct qca_ppe_priv *priv, const unsigned char *addr,
 
 	spin_lock_bh(&priv->fdb_lock);
 
-	ppe_w32(&priv->ppe, PPE_FDB_OP_DATA0, data0);
-	ppe_w32(&priv->ppe, PPE_FDB_OP_DATA1, data1);
-	ppe_w32(&priv->ppe, PPE_FDB_OP_DATA2, data2);
-	ppe_w32(&priv->ppe, PPE_FDB_OP,
-		FIELD_PREP(PPE_FDB_OP_TYPE, op_type) |
-		FIELD_PREP(PPE_FDB_OP_HASH_BLOCK, 3));
+	regmap_write(priv->regmap, PPE_FDB_OP_DATA0, data0);
+	regmap_write(priv->regmap, PPE_FDB_OP_DATA1, data1);
+	regmap_write(priv->regmap, PPE_FDB_OP_DATA2, data2);
+	regmap_write(priv->regmap, PPE_FDB_OP,
+		     FIELD_PREP(PPE_FDB_OP_TYPE, op_type) |
+		     FIELD_PREP(PPE_FDB_OP_HASH_BLOCK, 3));
 
 	ret = ppe_fdb_op_wait(priv, PPE_FDB_OP_RSLT, 0);
 
@@ -203,24 +204,24 @@ static int ppe_fdb_read_entry(struct qca_ppe_priv *priv, u32 index,
 
 	spin_lock_bh(&priv->fdb_lock);
 
-	ppe_w32(&priv->ppe, PPE_FDB_RD_OP_DATA0, 0);
-	ppe_w32(&priv->ppe, PPE_FDB_RD_OP_DATA1, 0);
-	ppe_w32(&priv->ppe, PPE_FDB_RD_OP_DATA2, 0);
+	regmap_write(priv->regmap, PPE_FDB_RD_OP_DATA0, 0);
+	regmap_write(priv->regmap, PPE_FDB_RD_OP_DATA1, 0);
+	regmap_write(priv->regmap, PPE_FDB_RD_OP_DATA2, 0);
 
 	val = FIELD_PREP(PPE_FDB_OP_CMD_ID, cmd_id) |
 	      FIELD_PREP(PPE_FDB_OP_TYPE, PPE_FDB_OP_GET) |
 	      FIELD_PREP(PPE_FDB_OP_HASH_BLOCK, 3) |
 	      PPE_FDB_OP_MODE |
 	      FIELD_PREP(PPE_FDB_OP_ENTRY_IDX, index);
-	ppe_w32(&priv->ppe, PPE_FDB_RD_OP, val);
+	regmap_write(priv->regmap, PPE_FDB_RD_OP, val);
 
 	ret = ppe_fdb_op_wait(priv, PPE_FDB_RD_OP_RSLT, cmd_id);
 	if (ret)
 		goto unlock;
 
-	data0 = ppe_r32(&priv->ppe, PPE_FDB_RD_RSLT_DATA0);
-	data1 = ppe_r32(&priv->ppe, PPE_FDB_RD_RSLT_DATA1);
-	data2 = ppe_r32(&priv->ppe, PPE_FDB_RD_RSLT_DATA2);
+	regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA0, &data0);
+	regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA1, &data1);
+	regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA2, &data2);
 
 unlock:
 	spin_unlock_bh(&priv->fdb_lock);
@@ -255,7 +256,7 @@ static int ppe_fdb_flush(struct qca_ppe_priv *priv)
 
 	spin_lock_bh(&priv->fdb_lock);
 
-	ppe_w32(&priv->ppe, PPE_FDB_OP,
+	regmap_write(priv->regmap, PPE_FDB_OP,
 		FIELD_PREP(PPE_FDB_OP_TYPE, PPE_FDB_OP_FLUSH));
 
 	ret = ppe_fdb_op_wait(priv, PPE_FDB_OP_RSLT, 0);
@@ -288,23 +289,23 @@ static int ppe_fdb_lookup(struct qca_ppe_priv *priv,
 
 	spin_lock_bh(&priv->fdb_lock);
 
-	ppe_w32(&priv->ppe, PPE_FDB_RD_OP_DATA0,
-		(addr[2] << 24) | (addr[3] << 16) | (addr[4] << 8) | addr[5]);
-	ppe_w32(&priv->ppe, PPE_FDB_RD_OP_DATA1,
-		((addr[0] << 8) | addr[1]) |
-		FIELD_PREP(PPE_FDB_DATA1_VSI, vid));
-	ppe_w32(&priv->ppe, PPE_FDB_RD_OP_DATA2, 0);
+	regmap_write(priv->regmap, PPE_FDB_RD_OP_DATA0,
+		     (addr[2] << 24) | (addr[3] << 16) | (addr[4] << 8) | addr[5]);
+	regmap_write(priv->regmap, PPE_FDB_RD_OP_DATA1,
+		     ((addr[0] << 8) | addr[1]) |
+		     FIELD_PREP(PPE_FDB_DATA1_VSI, vid));
+	regmap_write(priv->regmap, PPE_FDB_RD_OP_DATA2, 0);
 
-	ppe_w32(&priv->ppe, PPE_FDB_RD_OP,
-		FIELD_PREP(PPE_FDB_OP_TYPE, PPE_FDB_OP_GET) |
-		FIELD_PREP(PPE_FDB_OP_HASH_BLOCK, 3));
+	regmap_write(priv->regmap, PPE_FDB_RD_OP,
+		     FIELD_PREP(PPE_FDB_OP_TYPE, PPE_FDB_OP_GET) |
+		     FIELD_PREP(PPE_FDB_OP_HASH_BLOCK, 3));
 
 	ret = ppe_fdb_op_wait(priv, PPE_FDB_RD_OP_RSLT, 0);
 	if (ret)
 		goto out;
 
-	data1 = ppe_r32(&priv->ppe, PPE_FDB_RD_RSLT_DATA1);
-	data2 = ppe_r32(&priv->ppe, PPE_FDB_RD_RSLT_DATA2);
+	regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA1, &data1);
+	regmap_read(priv->regmap, PPE_FDB_RD_RSLT_DATA2, &data2);
 
 	if (!(data1 & PPE_FDB_DATA1_VALID)) {
 		ret = -ENOENT;
@@ -330,12 +331,12 @@ static int ppe_fdb_mcast_op(struct qca_ppe_priv *priv,
 
 	spin_lock_bh(&priv->fdb_lock);
 
-	ppe_w32(&priv->ppe, PPE_FDB_OP_DATA0, data0);
-	ppe_w32(&priv->ppe, PPE_FDB_OP_DATA1, data1);
-	ppe_w32(&priv->ppe, PPE_FDB_OP_DATA2, data2);
-	ppe_w32(&priv->ppe, PPE_FDB_OP,
-		FIELD_PREP(PPE_FDB_OP_TYPE, op_type) |
-		FIELD_PREP(PPE_FDB_OP_HASH_BLOCK, 3));
+	regmap_write(priv->regmap, PPE_FDB_OP_DATA0, data0);
+	regmap_write(priv->regmap, PPE_FDB_OP_DATA1, data1);
+	regmap_write(priv->regmap, PPE_FDB_OP_DATA2, data2);
+	regmap_write(priv->regmap, PPE_FDB_OP,
+		     FIELD_PREP(PPE_FDB_OP_TYPE, op_type) |
+		     FIELD_PREP(PPE_FDB_OP_HASH_BLOCK, 3));
 
 	ret = ppe_fdb_op_wait(priv, PPE_FDB_OP_RSLT, 0);
 
@@ -364,29 +365,29 @@ static int qca_ppe_setup(struct dsa_switch *ds)
 	for (i = 0; i < num_ports; i++)
 		priv->port_vsi[i] = PPE_VSI_INVALID;
 
-	ppe_w32(&priv->ppe, PPE_FDB_OP, 0);
+	regmap_write(priv->regmap, PPE_FDB_OP, 0);
 
 	for (i = 0; i < num_ports; i++) {
-		ppe_w32(&priv->ppe, PPE_CST_STATE(i), PPE_STP_FORWARDING);
+		regmap_write(priv->regmap, PPE_CST_STATE(i), PPE_STP_FORWARDING);
 
-		ppe_w32(&priv->ppe, PPE_MRU_MTU_CTRL(i),
-			PPE_DEFAULT_MTU | (PPE_DEFAULT_MTU << PPE_MTU_SHIFT));
+		regmap_write(priv->regmap, PPE_MRU_MTU_CTRL(i),
+			     PPE_DEFAULT_MTU | (PPE_DEFAULT_MTU << PPE_MTU_SHIFT));
 
 		if (i >= 1)
-			ppe_w32(&priv->ppe, PPE_GMAC_MIB_CTRL(i - 1),
-				PPE_MIB_EN);
+			regmap_write(priv->regmap, PPE_GMAC_MIB_CTRL(i - 1),
+				     PPE_MIB_EN);
 
 		val = PPE_BRIDGE_NEW_LRN_EN |
 		      PPE_BRIDGE_STA_MOVE_EN |
 		      FIELD_PREP(PPE_BRIDGE_PORT_ISOL, port_mask);
 		if (dsa_is_cpu_port(ds, i))
 			val |= PPE_PORT_BRIDGE_CTRL_TXMAC_EN;
-		ppe_m32(&priv->ppe, PPE_PORT_BRIDGE_CTRL(i),
-			PPE_BRIDGE_NEW_LRN_EN |
-			PPE_BRIDGE_STA_MOVE_EN |
-			PPE_BRIDGE_PORT_ISOL |
-			PPE_PORT_BRIDGE_CTRL_TXMAC_EN,
-			val);
+		regmap_update_bits(priv->regmap, PPE_PORT_BRIDGE_CTRL(i),
+				   PPE_BRIDGE_NEW_LRN_EN |
+				   PPE_BRIDGE_STA_MOVE_EN |
+				   PPE_BRIDGE_PORT_ISOL |
+				   PPE_PORT_BRIDGE_CTRL_TXMAC_EN,
+				   val);
 
 		ppe_port_cnt_enable(priv, i);
 	}
@@ -399,8 +400,8 @@ static int qca_ppe_setup(struct dsa_switch *ds)
 	      FIELD_PREP(PPE_VSI_TBL_UUC, BIT(QCA_PPE_CPU_PORT)) |
 	      FIELD_PREP(PPE_VSI_TBL_UMC, BIT(QCA_PPE_CPU_PORT)) |
 	      FIELD_PREP(PPE_VSI_TBL_BC, BIT(QCA_PPE_CPU_PORT));
-	ppe_w32(&priv->ppe, PPE_VSI_TBL(0), val);
-	ppe_w32(&priv->ppe, PPE_VSI_TBL(0) + 4,
+	regmap_write(priv->regmap, PPE_VSI_TBL(0), val);
+	regmap_write(priv->regmap, PPE_VSI_TBL(0) + 4,
 		PPE_VSI_TBL_NEW_ADDR_LRN_EN | PPE_VSI_TBL_STA_MOVE_LRN_EN);
 
 	for (i = 1; i < num_ports; i++)
@@ -408,9 +409,9 @@ static int qca_ppe_setup(struct dsa_switch *ds)
 
 	ppe_fdb_flush(priv);
 
-	ppe_m32(&priv->ppe, PPE_L2_GLOBAL_CONF,
-		PPE_L2_LRN_EN | PPE_L2_AGE_EN,
-		PPE_L2_LRN_EN | PPE_L2_AGE_EN);
+	regmap_update_bits(priv->regmap, PPE_L2_GLOBAL_CONF,
+			   PPE_L2_LRN_EN | PPE_L2_AGE_EN,
+			   PPE_L2_LRN_EN | PPE_L2_AGE_EN);
 
 	ds->ageing_time_min = PPE_AGE_UNIT_MS;
 	ds->ageing_time_max = (unsigned int)min_t(u64,
@@ -425,8 +426,8 @@ static int qca_ppe_set_ageing_time(struct dsa_switch *ds, unsigned int msecs)
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 	u32 timer = msecs / PPE_AGE_UNIT_MS;
 
-	ppe_m32(&priv->ppe, PPE_AGE_TIMER, PPE_AGE_TIMER_MASK,
-		FIELD_PREP(PPE_AGE_TIMER_MASK, timer));
+	regmap_update_bits(priv->regmap, PPE_AGE_TIMER, PPE_AGE_TIMER_MASK,
+			   FIELD_PREP(PPE_AGE_TIMER_MASK, timer));
 
 	return 0;
 }
@@ -859,14 +860,16 @@ static void qca_ppe_get_ethtool_stats(struct dsa_switch *ds, int port,
 
 	for (i = 0; i < ARRAY_SIZE(qca_ppe_mib); i++) {
 		const struct qca_ppe_mib_desc *mib = &qca_ppe_mib[i];
-		u64 val;
+		u32 val, hi;
 
-		val = ppe_r32(&priv->ppe, PPE_GMAC_MIB(gmac, mib->offset));
+		regmap_read(priv->regmap, PPE_GMAC_MIB(gmac, mib->offset), &val);
 		if (mib->size == 2)
-			val |= (u64)ppe_r32(&priv->ppe,
-					     PPE_GMAC_MIB(gmac,
-							  mib->offset + 4)) << 32;
+			regmap_read(priv->regmap,
+				    PPE_GMAC_MIB(gmac, mib->offset + 4), &hi);
+
 		data[i] = val;
+		if (mib->size == 2)
+			data[i] |= (u64)hi << 32;
 	}
 }
 
@@ -893,7 +896,8 @@ static void qca_ppe_port_stp_state_set(struct dsa_switch *ds, int port,
 		break;
 	}
 
-	ppe_m32(&priv->ppe, PPE_CST_STATE(port), PPE_STP_STATE_MASK, stp_state);
+	regmap_update_bits(priv->regmap, PPE_CST_STATE(port),
+			   PPE_STP_STATE_MASK, stp_state);
 }
 
 static const struct dsa_switch_ops qca_ppe_ops = {
@@ -924,46 +928,47 @@ static void ppe_vsi_init(struct qca_ppe_priv *priv)
 	int i;
 
 	/* All three words must be written back for the HW to latch the entry */
-	for (i = 1; i < priv->ppe.data->num_ports; i++) {
+	for (i = 1; i < priv->data->num_ports; i++) {
 		u32 val[3];
 
-		val[0] = ppe_r32(&priv->ppe, PPE_L3_VP_PORT_TBL(i));
-		val[1] = ppe_r32(&priv->ppe, PPE_L3_VP_PORT_TBL(i) + 4);
-		val[2] = ppe_r32(&priv->ppe, PPE_L3_VP_PORT_TBL(i) + 8);
+		regmap_read(priv->regmap, PPE_L3_VP_PORT_TBL(i), &val[0]);
+		regmap_read(priv->regmap, PPE_L3_VP_PORT_TBL(i) + 4, &val[1]);
+		regmap_read(priv->regmap, PPE_L3_VP_PORT_TBL(i) + 8, &val[2]);
 
 		val[1] &= ~(PPE_L3_VP_VSI_VALID | PPE_L3_VP_VSI);
 		val[1] |= PPE_L3_VP_VSI_VALID;
 
-		ppe_w32(&priv->ppe, PPE_L3_VP_PORT_TBL(i), val[0]);
-		ppe_w32(&priv->ppe, PPE_L3_VP_PORT_TBL(i) + 4, val[1]);
-		ppe_w32(&priv->ppe, PPE_L3_VP_PORT_TBL(i) + 8, val[2]);
+		regmap_write(priv->regmap, PPE_L3_VP_PORT_TBL(i), val[0]);
+		regmap_write(priv->regmap, PPE_L3_VP_PORT_TBL(i) + 4, val[1]);
+		regmap_write(priv->regmap, PPE_L3_VP_PORT_TBL(i) + 8, val[2]);
 	}
 }
 
 static void ppe_mac_hw_init(struct qca_ppe_priv *priv)
 {
-	const struct ppe_data *d = priv->ppe.data;
+	const struct ppe_data *d = priv->data;
 	int lpbk_gmac = d->loopback_port - 1;
 	int gmac;
 
 	for (gmac = 0; gmac < d->num_gmacs; gmac++) {
-		ppe_m32(&priv->ppe, PPE_GMAC_CTRL2(gmac),
-			PPE_GMAC_CTRL2_MAXFR | PPE_GMAC_CTRL2_CRS_SEL |
-			PPE_GMAC_CTRL2_TX_THD,
-			FIELD_PREP(PPE_GMAC_CTRL2_MAXFR, PPE_MAX_FRAME_SIZE) |
-			FIELD_PREP(PPE_GMAC_CTRL2_TX_THD, 1));
+		regmap_update_bits(priv->regmap, PPE_GMAC_CTRL2(gmac),
+				   PPE_GMAC_CTRL2_MAXFR | PPE_GMAC_CTRL2_CRS_SEL |
+				   PPE_GMAC_CTRL2_TX_THD,
+				   FIELD_PREP(PPE_GMAC_CTRL2_MAXFR, PPE_MAX_FRAME_SIZE) |
+				   FIELD_PREP(PPE_GMAC_CTRL2_TX_THD, 1));
 
-		ppe_m32(&priv->ppe, PPE_GMAC_DBG_CTRL(gmac),
-			PPE_GMAC_DBG_CTRL_HIHG_IPG,
-			FIELD_PREP(PPE_GMAC_DBG_CTRL_HIHG_IPG, 0xc));
+		regmap_update_bits(priv->regmap, PPE_GMAC_DBG_CTRL(gmac),
+				   PPE_GMAC_DBG_CTRL_HIHG_IPG,
+				   FIELD_PREP(PPE_GMAC_DBG_CTRL_HIHG_IPG, 0xc));
 
-		ppe_w32(&priv->ppe, PPE_GMAC_JUMBO_SIZE(gmac), PPE_MAX_FRAME_SIZE);
+		regmap_write(priv->regmap, PPE_GMAC_JUMBO_SIZE(gmac),
+			     PPE_MAX_FRAME_SIZE);
 	}
 
-	ppe_m32(&priv->ppe, PPE_LPBK_PPS_CTRL(lpbk_gmac),
-		PPE_LPBK_PPS_THRESHOLD,
-		FIELD_PREP(PPE_LPBK_PPS_THRESHOLD, 21));
-	ppe_w32(&priv->ppe, PPE_LPBK_ENABLE(lpbk_gmac),
+	regmap_update_bits(priv->regmap, PPE_LPBK_PPS_CTRL(lpbk_gmac),
+			   PPE_LPBK_PPS_THRESHOLD,
+			   FIELD_PREP(PPE_LPBK_PPS_THRESHOLD, 21));
+	regmap_write(priv->regmap, PPE_LPBK_ENABLE(lpbk_gmac),
 		PPE_LPBK_EN | PPE_LPBK_CRC_STRIP_EN);
 	msleep(100);
 	ppe_port_bridge_txmac_set(priv, d->loopback_port, true);
@@ -972,20 +977,20 @@ static void ppe_mac_hw_init(struct qca_ppe_priv *priv)
 static void ppe_ctrlpkt_init(struct qca_ppe_priv *priv)
 {
 	/* RFDB_TBL[31]: STP multicast MAC 01:80:c2:00:00:00 */
-	ppe_w32(&priv->ppe, PPE_RFDB_TBL(31), 0xc2000000);
-	ppe_w32(&priv->ppe, PPE_RFDB_TBL(31) + 4, 0x00010180);
+	regmap_write(priv->regmap, PPE_RFDB_TBL(31), 0xc2000000);
+	regmap_write(priv->regmap, PPE_RFDB_TBL(31) + 4, 0x00010180);
 
 	/* APP_CTRL[0]: match RFDB profile 31, bypass STP, redirect to CPU */
-	ppe_w32(&priv->ppe, PPE_APP_CTRL(0), 0x00000003);
-	ppe_w32(&priv->ppe, PPE_APP_CTRL(0) + 4, 0x00000002);
-	ppe_w32(&priv->ppe, PPE_APP_CTRL(0) + 8, 0x000093fc);
+	regmap_write(priv->regmap, PPE_APP_CTRL(0), 0x00000003);
+	regmap_write(priv->regmap, PPE_APP_CTRL(0) + 4, 0x00000002);
+	regmap_write(priv->regmap, PPE_APP_CTRL(0) + 8, 0x000093fc);
 }
 
 static void ppe_pcs_teardown(struct qca_ppe_priv *priv)
 {
 	int i;
 
-	for (i = 1; i < priv->ppe.data->num_ports; i++) {
+	for (i = 1; i < priv->data->num_ports; i++) {
 		if (!priv->port_pcs[i])
 			continue;
 
@@ -1013,7 +1018,7 @@ static void ppe_pcs_mux_cppe(struct qca_ppe_priv *priv,
 			mux |= CPPE_PORT5_GMAC_SEL;
 	}
 
-	ppe_w32(&priv->ppe, PPE_PORT_MUX_CTRL, mux);
+	regmap_write(priv->regmap, PPE_PORT_MUX_CTRL, mux);
 }
 
 static void ppe_pcs_mux_hppe(struct qca_ppe_priv *priv,
@@ -1046,12 +1051,12 @@ static void ppe_pcs_mux_hppe(struct qca_ppe_priv *priv,
 					  HPPE_PORT6_GMAC_SEL_GMAC);
 	}
 
-	ppe_w32(&priv->ppe, PPE_PORT_MUX_CTRL, mux);
+	regmap_write(priv->regmap, PPE_PORT_MUX_CTRL, mux);
 }
 
 static int ppe_pcs_setup(struct qca_ppe_priv *priv)
 {
-	const struct ppe_data *d = priv->ppe.data;
+	const struct ppe_data *d = priv->data;
 	struct device_node *ports_np, *port_np;
 	struct device_node *psgmii_uniphy = NULL;
 	struct device_node *port5_uniphy = NULL;
@@ -1122,6 +1127,12 @@ static int ppe_pcs_setup(struct qca_ppe_priv *priv)
 	return 0;
 }
 
+static const struct regmap_config ppe_regmap_cfg = {
+	.reg_bits = 32,
+	.reg_stride = 4,
+	.val_bits = 32,
+};
+
 static int qca_ppe_probe(struct platform_device *pdev)
 {
 	const struct ppe_data *data;
@@ -1129,6 +1140,7 @@ static int qca_ppe_probe(struct platform_device *pdev)
 	struct qca_ppe_priv *priv;
 	struct reset_control *rst;
 	struct dsa_switch *ds;
+	void __iomem *base;
 	int ret, i;
 
 	data = of_device_get_match_data(&pdev->dev);
@@ -1144,7 +1156,7 @@ static int qca_ppe_probe(struct platform_device *pdev)
 	if (!priv)
 		return -ENOMEM;
 
-	priv->ppe.data = data;
+	priv->data = data;
 
 	priv->num_clks = devm_clk_bulk_get_all(&pdev->dev, &priv->clks);
 	if (priv->num_clks < 0)
@@ -1154,11 +1166,13 @@ static int qca_ppe_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	priv->ppe.base = devm_platform_ioremap_resource(pdev, 0);
-	if (IS_ERR(priv->ppe.base)) {
-		ret = PTR_ERR(priv->ppe.base);
-		goto err_clk;
-	}
+	base = devm_platform_ioremap_resource(pdev, 0);
+	if (IS_ERR(base))
+		return dev_err_probe(&pdev->dev, PTR_ERR(base), "failed to ioremap resource");
+
+	priv->regmap = devm_regmap_init_mmio(&pdev->dev, base, &ppe_regmap_cfg);
+	if (IS_ERR(priv->regmap))
+		return dev_err_probe(&pdev->dev, PTR_ERR(priv->regmap), "failed to init regmap");
 
 	rst = devm_reset_control_get(&pdev->dev, "ppe_rst");
 	if (IS_ERR(rst)) {
@@ -1207,7 +1221,7 @@ static int qca_ppe_probe(struct platform_device *pdev)
 
 	ppe_vsi_init(priv);
 
-	ppe_scheduler_init(&priv->ppe);
+	ppe_scheduler_init(priv);
 
 	ppe_mac_hw_init(priv);
 	ppe_ctrlpkt_init(priv);
