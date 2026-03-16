@@ -97,6 +97,8 @@ static void ppe_xgmac_link_up(struct qca_ppe_priv *priv, int port,
 	u32 val;
 
 	switch (speed) {
+	case SPEED_10:
+	case SPEED_100:
 	case SPEED_1000:
 		val = PPE_XGMAC_SPEED_SELECT_1000;
 		break;
@@ -113,8 +115,17 @@ static void ppe_xgmac_link_up(struct qca_ppe_priv *priv, int port,
 		return;
 	}
 
-	if (interface == PHY_INTERFACE_MODE_USXGMII && !SPEED_1000)
-		val |= PPE_XGMAC_USXGMII_SELECT;
+	if (interface == PHY_INTERFACE_MODE_USXGMII) {
+		switch (speed) {
+		case SPEED_2500:
+		case SPEED_5000:
+		case SPEED_10000:
+			val |= PPE_XGMAC_USXGMII_SELECT;
+			break;
+		default:
+			break;
+		}
+	}
 
 	regmap_update_bits(priv->regmap, PPE_XGMAC_TX_CONF(xgmac),
 			   PPE_XGMAC_SPEED_SELECT |
