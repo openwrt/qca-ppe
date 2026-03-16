@@ -15,7 +15,7 @@
 
 #include "qca_ppe.h"
 
-static void ppe_port_mac_set(struct qca_ppe_priv *priv, int port,
+static void ppe_port_gmac_set(struct qca_ppe_priv *priv, int port,
 			     bool tx_en, bool rx_en)
 {
 	int gmac = port - 1;
@@ -31,6 +31,23 @@ static void ppe_port_mac_set(struct qca_ppe_priv *priv, int port,
 	regmap_update_bits(priv->regmap, PPE_GMAC_ENABLE(gmac),
 			   PPE_MAC_ENABLE_TXMAC_EN | PPE_MAC_ENABLE_RXMAC_EN,
 			   val);
+}
+
+static void ppe_port_xgmac_set(struct qca_ppe_priv *priv, int port,
+			       bool tx_en, bool rx_en)
+{
+	int xgmac = port - 5;
+
+	if (port < 5 || port >= priv->data->num_ports)
+		return;
+
+	regmap_update_bits(priv->regmap, PPE_XGMAC_TX_CONF(xgmac),
+			   PPE_XGMAC_TX_ENABLE,
+			   tx_en ? PPE_XGMAC_TX_ENABLE : 0);
+
+	regmap_update_bits(priv->regmap, PPE_XGMAC_RX_CONF(xgmac),
+			   PPE_XGMAC_RX_ENABLE,
+			   rx_en ? PPE_XGMAC_RX_ENABLE : 0);
 }
 
 static void ppe_port_bridge_txmac_set(struct qca_ppe_priv *priv, int port,
@@ -55,7 +72,6 @@ static void ppe_gmac_link_up(struct qca_ppe_priv *priv, int port,
 		val |= FIELD_PREP(PPE_GMAC_SPEED_MASK, 1);
 		break;
 	case SPEED_1000:
-	case SPEED_2500:
 		val |= FIELD_PREP(PPE_GMAC_SPEED_MASK, 2);
 		break;
 	}
@@ -71,6 +87,60 @@ static void ppe_gmac_link_up(struct qca_ppe_priv *priv, int port,
 	regmap_update_bits(priv->regmap, PPE_GMAC_ENABLE(gmac),
 			   PPE_MAC_ENABLE_DUPLEX | PPE_MAC_ENABLE_TX_FLOW_EN |
 			   PPE_MAC_ENABLE_RX_FLOW_EN, val);
+}
+
+static void ppe_xgmac_link_up(struct qca_ppe_priv *priv, int port,
+			      phy_interface_t interface, int speed,
+			      bool tx_pause, bool rx_pause)
+{
+	int xgmac = port - 5;
+	u32 val;
+
+	switch (speed) {
+	case SPEED_1000:
+		val = PPE_XGMAC_SPEED_SELECT_1000;
+		break;
+	case SPEED_2500:
+		val = PPE_XGMAC_SPEED_SELECT_2500;
+		break;
+	case SPEED_5000:
+		val = PPE_XGMAC_SPEED_SELECT_5000;
+		break;
+	case SPEED_10000:
+		val = PPE_XGMAC_SPEED_SELECT_10000;
+		break;
+	default:
+		return;
+	}
+
+	if (interface == PHY_INTERFACE_MODE_USXGMII)
+		val |= PPE_XGMAC_USXGMII_SELECT;
+
+	regmap_update_bits(priv->regmap, PPE_XGMAC_TX_CONF(xgmac),
+			   PPE_XGMAC_SPEED_SELECT |
+			   PPE_XGMAC_USXGMII_SELECT, val);
+
+	regmap_set_bits(priv->regmap, PPE_XGMAC_RX_CONF(xgmac),
+			PPE_XGMAC_AUTO_CRC_STRIP |
+			PPE_XGMAC_CRC_STRIP_TYPE);
+
+	regmap_set_bits(priv->regmap, PPE_XGMAC_PACKET_FILTER(xgmac),
+			PPE_XGMAC_PROMISCUOUS);
+
+	regmap_update_bits(priv->regmap, PPE_XGMAC_WATCHDOG_TIMEOUT(xgmac),
+			   PPE_XGMAC_WATCHDOG_ENABLE |
+			   PPE_XGMAC_WATCHDOG_THRESHOLD,
+			   PPE_XGMAC_WATCHDOG_ENABLE |
+			   FIELD_PREP(PPE_XGMAC_WATCHDOG_THRESHOLD, 0xb));
+
+	regmap_update_bits(priv->regmap, PPE_XGMAC_TX_FLOW_CTRL(xgmac),
+			   PPE_XGMAC_PAUSE_TIME | PPE_XGMAC_TX_FLOW_ENABLE,
+			   FIELD_PREP(PPE_XGMAC_PAUSE_TIME, 0xffff) |
+			   tx_pause ? PPE_XGMAC_RX_FLOW_ENABLE : 0);
+
+	regmap_update_bits(priv->regmap, PPE_XGMAC_RX_FLOW_CTRL(xgmac),
+			   PPE_XGMAC_RX_FLOW_ENABLE,
+			   rx_pause ? PPE_XGMAC_RX_FLOW_ENABLE : 0);
 }
 
 static void ppe_port_cnt_enable(struct qca_ppe_priv *priv, int port)
@@ -437,7 +507,9 @@ static int qca_ppe_port_enable(struct dsa_switch *ds, int port,
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 
-	ppe_port_mac_set(priv, port, true, true);
+	/* TODO handle xgmac */
+
+	ppe_port_gmac_set(priv, port, true, true);
 
 	return 0;
 }
@@ -446,7 +518,9 @@ static void qca_ppe_port_disable(struct dsa_switch *ds, int port)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 
-	ppe_port_mac_set(priv, port, false, false);
+	/* TODO handle xgmac */
+
+	ppe_port_gmac_set(priv, port, false, false);
 }
 
 static struct qca_ppe_bridge_vsi *
@@ -721,8 +795,10 @@ static void qca_ppe_mac_link_down(struct phylink_config *config,
 	struct qca_ppe_priv *priv = ds_to_priv(dp->ds);
 	int port = dp->index;
 
+	/* TODO handle xgmac */
+
 	ppe_port_bridge_txmac_set(priv, port, false);
-	ppe_port_mac_set(priv, port, false, false);
+	ppe_port_gmac_set(priv, port, false, false);
 }
 
 static void qca_ppe_mac_link_up(struct phylink_config *config,
@@ -737,7 +813,28 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	int port = dp->index;
 	unsigned long rate;
 
-	ppe_gmac_link_up(priv, port, speed, duplex, tx_pause, rx_pause);
+	/* Invalid mode for port < 5 */
+	if ((interface == PHY_INTERFACE_MODE_2500BASEX ||
+	     interface == PHY_INTERFACE_MODE_USXGMII) &&
+	     port < 5)
+		return;
+
+	switch (interface) {
+	case PHY_INTERFACE_MODE_INTERNAL:
+	case PHY_INTERFACE_MODE_SGMII:
+	case PHY_INTERFACE_MODE_QSGMII:
+	case PHY_INTERFACE_MODE_PSGMII:
+		ppe_gmac_link_up(priv, port, speed, duplex,
+				 tx_pause, rx_pause);
+		break;
+	case PHY_INTERFACE_MODE_2500BASEX:
+	case PHY_INTERFACE_MODE_USXGMII:
+		ppe_xgmac_link_up(priv, port, interface, speed,
+				  tx_pause, rx_pause);
+		break;
+	default:
+		return;
+	}
 
 	switch (speed) {
 	case SPEED_10:
@@ -762,7 +859,21 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	if (priv->port_tx_clk[port])
 		clk_set_rate(priv->port_tx_clk[port], rate);
 
-	ppe_port_mac_set(priv, port, true, true);
+	switch (interface) {
+	case PHY_INTERFACE_MODE_INTERNAL:
+	case PHY_INTERFACE_MODE_SGMII:
+	case PHY_INTERFACE_MODE_QSGMII:
+	case PHY_INTERFACE_MODE_PSGMII:
+		ppe_port_gmac_set(priv, port, true, true);
+		break;
+	case PHY_INTERFACE_MODE_2500BASEX:
+	case PHY_INTERFACE_MODE_USXGMII:
+		ppe_port_xgmac_set(priv, port, true, true);
+		break;
+	default:
+		return;
+	}
+
 	ppe_port_bridge_txmac_set(priv, port, true);
 }
 
@@ -1039,14 +1150,16 @@ static void ppe_pcs_mux_hppe(struct qca_ppe_priv *priv,
 		else
 			mux |= FIELD_PREP(HPPE_PORT5_PCS_SEL, HPPE_PORT5_PCS1);
 
-		if (port5_mode != PHY_INTERFACE_MODE_USXGMII)
+		if (port5_mode != PHY_INTERFACE_MODE_USXGMII &&
+		    port5_mode != PHY_INTERFACE_MODE_2500BASEX)
 			mux |= FIELD_PREP(HPPE_PORT5_GMAC_SEL,
 					  HPPE_PORT5_GMAC_SEL_GMAC);
 	}
 
 	if (port6_uniphy) {
 		mux |= FIELD_PREP(HPPE_PORT6_PCS_SEL, HPPE_PORT6_PCS2);
-		if (port6_mode != PHY_INTERFACE_MODE_USXGMII)
+		if (port5_mode != PHY_INTERFACE_MODE_USXGMII &&
+		    port5_mode != PHY_INTERFACE_MODE_2500BASEX)
 			mux |= FIELD_PREP(HPPE_PORT6_GMAC_SEL,
 					  HPPE_PORT6_GMAC_SEL_GMAC);
 	}
