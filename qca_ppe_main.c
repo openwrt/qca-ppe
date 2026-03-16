@@ -847,18 +847,47 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 		return;
 	}
 
-	switch (speed) {
-	case SPEED_10:
-		rate = 2500000;
+	switch (interface) {
+	case PHY_INTERFACE_MODE_SGMII:
+	case PHY_INTERFACE_MODE_QSGMII:
+	case PHY_INTERFACE_MODE_PSGMII:
+	case PHY_INTERFACE_MODE_2500BASEX:
+		switch (speed) {
+		case SPEED_10:
+			rate = 2500000;
+			break;
+		case SPEED_100:
+			rate = 25000000;
+			break;
+		case SPEED_1000:
+			rate = 125000000;
+			break;
+		case SPEED_2500:
+			rate = 312500000;
+			break;
+		}
 		break;
-	case SPEED_100:
-		rate = 25000000;
-		break;
-	case SPEED_1000:
-		rate = 125000000;
-		break;
-	case SPEED_2500:
-		rate = 312500000;
+	case PHY_INTERFACE_MODE_USXGMII:
+		switch (speed) {
+		case SPEED_10:
+			rate = 1250000;
+			break;
+		case SPEED_100:
+			rate = 12500000;
+			break;
+		case SPEED_1000:
+			rate = 125000000;
+			break;
+		case SPEED_2500:
+			rate = 78125000;
+			break;
+		case SPEED_5000:
+			rate = 156250000;
+			break;
+		case SPEED_10000:
+			rate = 312500000;
+			break;
+		}
 		break;
 	default:
 		rate = 125000000;
