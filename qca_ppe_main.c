@@ -1165,7 +1165,7 @@ static void ppe_pcs_mux_cppe(struct qca_ppe_priv *priv,
 	if (port5_uniphy && psgmii_uniphy &&
 	    port5_uniphy != psgmii_uniphy) {
 		mux |= FIELD_PREP(CPPE_PORT5_PCS_SEL, CPPE_PORT5_PCS1_CH0);
-		if (port5_mode == PHY_INTERFACE_MODE_USXGMII)
+		if (port5_mode != PHY_INTERFACE_MODE_USXGMII)
 			mux |= CPPE_PORT5_GMAC_SEL;
 	}
 
