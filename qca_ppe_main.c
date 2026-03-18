@@ -1198,8 +1198,8 @@ static void ppe_pcs_mux_hppe(struct qca_ppe_priv *priv,
 
 	if (port6_uniphy) {
 		mux |= FIELD_PREP(HPPE_PORT6_PCS_SEL, HPPE_PORT6_PCS2);
-		if (port5_mode != PHY_INTERFACE_MODE_USXGMII &&
-		    port5_mode != PHY_INTERFACE_MODE_2500BASEX)
+		if (port6_mode != PHY_INTERFACE_MODE_USXGMII &&
+		    port6_mode != PHY_INTERFACE_MODE_2500BASEX)
 			mux |= FIELD_PREP(HPPE_PORT6_GMAC_SEL,
 					  HPPE_PORT6_GMAC_SEL_GMAC);
 	}
