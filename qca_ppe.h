@@ -271,9 +271,20 @@
 #define   PPE_VSI_TBL_NEW_ADDR_LRN_EN	BIT(0)
 #define   PPE_VSI_TBL_STA_MOVE_LRN_EN	BIT(3)
 
-#define PPE_MRU_MTU_CTRL(port)		(PPE_L2_BASE + 0x3000 + (port) * 0x10)
+/* Update the increment to 0x10 for IPQ6018 */
+#define PPE_MRU_MTU_CTRL(port)		(PPE_L2_BASE + 0x3000 + (port) * 0x8)
+#define   PPE_MRU_MTU_CTRL_W0_MRU	GENMASK(13, 0)
+#define   PPE_MRU_MTU_CTRL_W0_MRU_CMD	GENMASK(15, 14)
+#define   PPE_MRU_MTU_CTRL_W0_MTU	GENMASK(29, 16)
+#define   PPE_MRU_MTU_CTRL_W0_MTU_CMD	GENMASK(31, 30)
 #define   PPE_MRU_MTU_CTRL_RX_CNT_EN	BIT(0)
 #define   PPE_MRU_MTU_CTRL_TX_CNT_EN	BIT(1)
+
+#define PPE_MRU_MTU_CTRL_SET_MRU(tbl_cfg, value)	\
+	u32p_replace_bits((u32 *)tbl_cfg, value, PPE_MRU_MTU_CTRL_W0_MRU)
+
+#define PPE_MRU_MTU_CTRL_SET_MTU(tbl_cfg, value)	\
+	u32p_replace_bits((u32 *)tbl_cfg, value, PPE_MRU_MTU_CTRL_W0_MTU)
 
 /* --- L3 (base 0x200000) --- */
 #define PPE_L3_BASE			0x200000

@@ -1051,6 +1051,35 @@ static void qca_ppe_port_stp_state_set(struct dsa_switch *ds, int port,
 			   PPE_STP_STATE_MASK, stp_state);
 }
 
+static int qca_ppe_port_change_mtu(struct dsa_switch *ds, int port,
+				   int new_mtu)
+{
+	struct qca_ppe_priv *priv = ds_to_priv(ds);
+	u32 mru_mtu_val[2];
+	int ret;
+
+	new_mtu += ETH_HLEN;
+
+	if (new_mtu > PPE_MAX_FRAME_SIZE - ETH_FCS_LEN)
+		return -EINVAL;
+
+	ret = regmap_bulk_read(priv->regmap, PPE_MRU_MTU_CTRL(port),
+			       mru_mtu_val, ARRAY_SIZE(mru_mtu_val));
+	if (ret)
+		return ret;
+
+	PPE_MRU_MTU_CTRL_SET_MRU(mru_mtu_val, new_mtu);
+	PPE_MRU_MTU_CTRL_SET_MTU(mru_mtu_val, new_mtu);
+
+	return regmap_bulk_write(priv->regmap, PPE_MRU_MTU_CTRL(port),
+				 mru_mtu_val, ARRAY_SIZE(mru_mtu_val));
+}
+
+static int qca_ppe_port_max_mtu(struct dsa_switch *ds, int port)
+{
+	return PPE_MAX_FRAME_SIZE - ETH_FCS_LEN;
+}
+
 static const struct dsa_switch_ops qca_ppe_ops = {
 	.get_tag_protocol	= qca_ppe_get_tag_protocol,
 	.setup			= qca_ppe_setup,
@@ -1060,6 +1089,8 @@ static const struct dsa_switch_ops qca_ppe_ops = {
 	.port_stp_state_set	= qca_ppe_port_stp_state_set,
 	.port_bridge_join	= qca_ppe_port_bridge_join,
 	.port_bridge_leave	= qca_ppe_port_bridge_leave,
+	.port_change_mtu	= qca_ppe_port_change_mtu,
+	.port_max_mtu		= qca_ppe_port_max_mtu,
 	.port_fdb_add		= qca_ppe_port_fdb_add,
 	.port_fdb_del		= qca_ppe_port_fdb_del,
 	.port_fdb_dump		= qca_ppe_port_fdb_dump,
