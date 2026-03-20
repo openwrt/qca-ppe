@@ -150,6 +150,10 @@ static void ppe_xgmac_link_up(struct qca_ppe_priv *priv, int port,
 
 static void ppe_port_cnt_enable(struct qca_ppe_priv *priv, int port)
 {
+	/*
+	 * The PPE_MRU_MTU_CTRL is 36 bit long in total.
+	 * These are bits 32 and 33, hence +4 to the register address.
+	 */
 	regmap_update_bits(priv->regmap, PPE_MRU_MTU_CTRL(port) + 4,
 			   PPE_MRU_MTU_CTRL_RX_CNT_EN | PPE_MRU_MTU_CTRL_TX_CNT_EN,
 			   PPE_MRU_MTU_CTRL_RX_CNT_EN | PPE_MRU_MTU_CTRL_TX_CNT_EN);
@@ -445,8 +449,10 @@ static int qca_ppe_setup(struct dsa_switch *ds)
 	for (i = 0; i < num_ports; i++) {
 		regmap_write(priv->regmap, PPE_CST_STATE(i), PPE_STP_FORWARDING);
 
-		regmap_write(priv->regmap, PPE_MRU_MTU_CTRL(i),
-			     PPE_DEFAULT_MTU | (PPE_DEFAULT_MTU << PPE_MTU_SHIFT));
+		/* Set the default MTU and MRU to 1514 */
+		regmap_update_bits(priv->regmap, PPE_MRU_MTU_CTRL(i),
+				   PPE_MRU_MTU_CTRL_MRU | PPE_MRU_MTU_CTRL_MTU,
+				   PPE_DEFAULT_MTU);
 
 		if (i >= 1)
 			regmap_write(priv->regmap, PPE_GMAC_MIB_CTRL(i - 1),
@@ -1245,6 +1251,26 @@ static void qca_ppe_port_stp_state_set(struct dsa_switch *ds, int port,
 			   PPE_STP_STATE_MASK, stp_state);
 }
 
+static int qca_ppe_port_change_mtu(struct dsa_switch *ds, int port,
+				   int new_mtu)
+{
+	struct qca_ppe_priv *priv = ds_to_priv(ds);
+
+	new_mtu += ETH_HLEN;
+
+	if (new_mtu > PPE_MAX_FRAME_SIZE - ETH_FCS_LEN)
+		return -EINVAL;
+
+	return regmap_update_bits(priv->regmap, PPE_MRU_MTU_CTRL(port),
+	                          PPE_MRU_MTU_CTRL_MRU | PPE_MRU_MTU_CTRL_MTU,
+	                          new_mtu);
+}
+
+static int qca_ppe_port_max_mtu(struct dsa_switch *ds, int port)
+{
+	return PPE_MAX_FRAME_SIZE - ETH_FCS_LEN;
+}
+
 static const struct dsa_switch_ops qca_ppe_ops = {
 	.get_tag_protocol	= qca_ppe_get_tag_protocol,
 	.setup			= qca_ppe_setup,
@@ -1254,6 +1280,8 @@ static const struct dsa_switch_ops qca_ppe_ops = {
 	.port_stp_state_set	= qca_ppe_port_stp_state_set,
 	.port_bridge_join	= qca_ppe_port_bridge_join,
 	.port_bridge_leave	= qca_ppe_port_bridge_leave,
+	.port_change_mtu	= qca_ppe_port_change_mtu,
+	.port_max_mtu		= qca_ppe_port_max_mtu,
 	.port_fdb_add		= qca_ppe_port_fdb_add,
 	.port_fdb_del		= qca_ppe_port_fdb_del,
 	.port_fdb_dump		= qca_ppe_port_fdb_dump,

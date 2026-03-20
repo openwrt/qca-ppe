@@ -276,9 +276,14 @@
 #define   PPE_VSI_TBL_NEW_ADDR_LRN_EN	BIT(0)
 #define   PPE_VSI_TBL_STA_MOVE_LRN_EN	BIT(3)
 
-#define PPE_MRU_MTU_CTRL(port)		(PPE_L2_BASE + 0x3000 + (port) * 0x10)
-#define   PPE_MRU_MTU_CTRL_RX_CNT_EN	BIT(0)
-#define   PPE_MRU_MTU_CTRL_TX_CNT_EN	BIT(1)
+/* Update the increment to 0x10 for IPQ6018 */
+#define PPE_MRU_MTU_CTRL(port)		(PPE_L2_BASE + 0x3000 + (port) * 0x8)
+#define   PPE_MRU_MTU_CTRL_MRU		GENMASK(13, 0)
+#define   PPE_MRU_MTU_CTRL_MRU_CMD	GENMASK(15, 14)
+#define   PPE_MRU_MTU_CTRL_MTU		GENMASK(29, 16)
+#define   PPE_MRU_MTU_CTRL_MTU_CMD	GENMASK(31, 30)
+#define   PPE_MRU_MTU_CTRL_RX_CNT_EN	BIT(0) /* Bit 32 */
+#define   PPE_MRU_MTU_CTRL_TX_CNT_EN	BIT(1) /* Bit 33 */
 
 /* --- L3 (base 0x200000) --- */
 #define PPE_L3_BASE			0x200000
@@ -419,8 +424,7 @@
 #define PPE_VSI_MAX			32
 #define PPE_VSI_INVALID			U32_MAX
 #define PPE_DEFAULT_MTU			1514
-#define PPE_MTU_SHIFT			16
-#define PPE_MAX_FRAME_SIZE		0x3000
+#define PPE_MAX_FRAME_SIZE		12288
 #define PPE_AGE_UNIT_MS			8000
 
 #define PPE_FDB_TBL_NUM			2048
