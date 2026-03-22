@@ -783,6 +783,111 @@ qca_ppe_mac_select_pcs(struct phylink_config *config,
 	return priv->port_pcs[dp->index];
 }
 
+static void ppe_pcs_set_mux_hppe(struct qca_ppe_priv *priv, int port,
+				 unsigned int mode, phy_interface_t interface)
+{
+	u32 mask, val;
+
+	switch (port) {
+	case 4:
+		mask = HPPE_PORT4_PCS_SEL;
+		if (interface == PHY_INTERFACE_MODE_QSGMII ||
+		    interface == PHY_INTERFACE_MODE_PSGMII)
+			val = FIELD_PREP(HPPE_PORT4_PCS_SEL,
+					 HPPE_PORT4_PCS0);
+		break;
+	case 5:
+		mask = HPPE_PORT5_PCS_SEL | HPPE_PORT5_GMAC_SEL;
+		switch (interface) {
+		case PHY_INTERFACE_MODE_QSGMII:
+		case PHY_INTERFACE_MODE_PSGMII:
+			val = FIELD_PREP(HPPE_PORT5_PCS_SEL,
+					 HPPE_PORT5_PCS0) |
+			      FIELD_PREP(HPPE_PORT5_GMAC_SEL,
+					 HPPE_PORT5_GMAC_SEL_GMAC);
+			break;
+		case PHY_INTERFACE_MODE_SGMII:
+			val = FIELD_PREP(HPPE_PORT5_PCS_SEL,
+					 HPPE_PORT5_PCS1) |
+			      FIELD_PREP(HPPE_PORT5_GMAC_SEL,
+					 HPPE_PORT5_GMAC_SEL_GMAC);
+			break;
+		case PHY_INTERFACE_MODE_2500BASEX:
+		case PHY_INTERFACE_MODE_USXGMII:
+			val = FIELD_PREP(HPPE_PORT5_PCS_SEL,
+					 HPPE_PORT5_PCS1);
+			break;
+		default:
+			return;
+		}
+		break;
+	case 6:
+		mask = HPPE_PORT6_PCS_SEL | HPPE_PORT6_GMAC_SEL;
+		val = FIELD_PREP(HPPE_PORT6_PCS_SEL, HPPE_PORT6_PCS2);
+
+		switch (interface) {
+		case PHY_INTERFACE_MODE_SGMII:
+			val |= FIELD_PREP(HPPE_PORT6_GMAC_SEL,
+					  HPPE_PORT6_GMAC_SEL_GMAC);
+			break;
+		case PHY_INTERFACE_MODE_2500BASEX:
+		case PHY_INTERFACE_MODE_USXGMII:
+			break;
+		default:
+			return;
+		}
+	default:
+		return;
+	}
+
+	regmap_update_bits(priv->regmap, PPE_PORT_MUX_CTRL, mask, val);
+}
+
+static void ppe_pcs_set_mux_cppe(struct qca_ppe_priv *priv, int port,
+				 unsigned int mode, phy_interface_t interface)
+{
+	u32 mask, val = 0;
+
+	switch (port) {
+	case 5:
+		mask = CPPE_PORT5_PCS_SEL | CPPE_PORT5_GMAC_SEL;
+		switch (interface) {
+		case PHY_INTERFACE_MODE_SGMII:
+			val = FIELD_PREP(CPPE_PORT5_PCS_SEL,
+					 CPPE_PORT5_PCS1_CH0) |
+			      CPPE_PORT5_GMAC_SEL;
+			break;
+		case PHY_INTERFACE_MODE_2500BASEX:
+		case PHY_INTERFACE_MODE_USXGMII:
+			val = FIELD_PREP(CPPE_PORT5_PCS_SEL,
+					 CPPE_PORT5_PCS1_CH0);
+			break;
+		default:
+			return;
+		}
+	default:
+		return;
+	}
+
+	regmap_update_bits(priv->regmap, PPE_PORT_MUX_CTRL, mask, val);
+}
+
+static int qca_ppe_mac_prepare(struct phylink_config *config, unsigned int mode,
+			       phy_interface_t interface)
+{
+	struct dsa_port *dp = dsa_phylink_to_port(config);
+	struct qca_ppe_priv *priv = ds_to_priv(dp->ds);
+	const struct ppe_data *d = priv->data;
+	int port = dp->index;
+
+	if (d->type == PPE_TYPE_IPQ8074)
+		ppe_pcs_set_mux_hppe(priv, port, mode, interface);
+	else
+		ppe_pcs_set_mux_cppe(priv, port, mode, interface);
+
+	return 0;
+}
+
 static void qca_ppe_mac_config(struct phylink_config *config,
 				    unsigned int mode,
 				    const struct phylink_link_state *state)
@@ -919,6 +1024,7 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 
 static const struct phylink_mac_ops qca_ppe_phylink_mac_ops = {
 	.mac_select_pcs	= qca_ppe_mac_select_pcs,
+	.mac_prepare	= qca_ppe_mac_prepare,
 	.mac_config	= qca_ppe_mac_config,
 	.mac_link_down	= qca_ppe_mac_link_down,
 	.mac_link_up	= qca_ppe_mac_link_up,
@@ -1150,63 +1256,6 @@ static void ppe_pcs_teardown(struct qca_ppe_priv *priv)
 	}
 }
 
-static void ppe_pcs_mux_cppe(struct qca_ppe_priv *priv,
-			     struct device_node *psgmii_uniphy,
-			     struct device_node *port5_uniphy,
-			     phy_interface_t port5_mode, int port3_ch)
-{
-	u32 mux = 0;
-
-	if (port3_ch == 4) {
-		mux |= FIELD_PREP(CPPE_PORT3_PCS_SEL, CPPE_PORT3_PCS0_CH4);
-		mux |= CPPE_PCS0_CH4_SEL;
-	}
-
-	if (port5_uniphy && psgmii_uniphy &&
-	    port5_uniphy != psgmii_uniphy) {
-		mux |= FIELD_PREP(CPPE_PORT5_PCS_SEL, CPPE_PORT5_PCS1_CH0);
-		if (port5_mode != PHY_INTERFACE_MODE_USXGMII)
-			mux |= CPPE_PORT5_GMAC_SEL;
-	}
-
-	regmap_write(priv->regmap, PPE_PORT_MUX_CTRL, mux);
-}
-
-static void ppe_pcs_mux_hppe(struct qca_ppe_priv *priv,
-			     struct device_node *psgmii_uniphy,
-			     struct device_node *port5_uniphy,
-			     struct device_node *port6_uniphy,
-			     phy_interface_t port5_mode,
-			     phy_interface_t port6_mode)
-{
-	u32 mux = 0;
-
-	if (psgmii_uniphy)
-		mux |= FIELD_PREP(HPPE_PORT4_PCS_SEL, HPPE_PORT4_PCS0);
-
-	if (port5_uniphy) {
-		if (psgmii_uniphy && port5_uniphy == psgmii_uniphy)
-			mux |= FIELD_PREP(HPPE_PORT5_PCS_SEL, HPPE_PORT5_PCS0);
-		else
-			mux |= FIELD_PREP(HPPE_PORT5_PCS_SEL, HPPE_PORT5_PCS1);
-
-		if (port5_mode != PHY_INTERFACE_MODE_USXGMII &&
-		    port5_mode != PHY_INTERFACE_MODE_2500BASEX)
-			mux |= FIELD_PREP(HPPE_PORT5_GMAC_SEL,
-					  HPPE_PORT5_GMAC_SEL_GMAC);
-	}
-
-	if (port6_uniphy) {
-		mux |= FIELD_PREP(HPPE_PORT6_PCS_SEL, HPPE_PORT6_PCS2);
-		if (port6_mode != PHY_INTERFACE_MODE_USXGMII &&
-		    port6_mode != PHY_INTERFACE_MODE_2500BASEX)
-			mux |= FIELD_PREP(HPPE_PORT6_GMAC_SEL,
-					  HPPE_PORT6_GMAC_SEL_GMAC);
-	}
-
-	regmap_write(priv->regmap, PPE_PORT_MUX_CTRL, mux);
-}
-
 static int ppe_pcs_setup(struct qca_ppe_priv *priv)
 {
 	const struct ppe_data *d = priv->data;
@@ -1270,12 +1319,13 @@ static int ppe_pcs_setup(struct qca_ppe_priv *priv)
 
 	of_node_put(ports_np);
 
-	if (d->type == PPE_TYPE_IPQ8074)
-		ppe_pcs_mux_hppe(priv, psgmii_uniphy, port5_uniphy,
-				 port6_uniphy, port5_mode, port6_mode);
-	else
-		ppe_pcs_mux_cppe(priv, psgmii_uniphy, port5_uniphy,
-				 port5_mode, port3_ch);
+	/* FIXME: better investigate this */
+	if (d->type == PPE_TYPE_IPQ6018 && port3_ch == 4)
+		regmap_update_bits(priv->regmap, PPE_PORT_MUX_CTRL,
+				   CPPE_PORT3_PCS_SEL | CPPE_PCS0_CH4_SEL,
+				   FIELD_PREP(CPPE_PORT3_PCS_SEL,
+					      CPPE_PORT3_PCS0_CH4) |
+				   CPPE_PCS0_CH4_SEL);
 
 	return 0;
 }
