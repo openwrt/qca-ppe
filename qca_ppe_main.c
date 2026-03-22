@@ -849,6 +849,7 @@ static void ppe_pcs_set_mux_hppe(struct qca_ppe_priv *priv, int port,
 		default:
 			return;
 		}
+		break;
 	default:
 		return;
 	}
