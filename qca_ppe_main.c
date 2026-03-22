@@ -116,7 +116,8 @@ static void ppe_xgmac_link_up(struct qca_ppe_priv *priv, int port,
 		return;
 	}
 
-	if (interface == PHY_INTERFACE_MODE_USXGMII) {
+	if (interface == PHY_INTERFACE_MODE_USXGMII ||
+	    interface == PHY_INTERFACE_MODE_10GBASER) {
 		switch (speed) {
 		case SPEED_2500:
 		case SPEED_5000:
@@ -816,6 +817,7 @@ static void ppe_pcs_set_mux_hppe(struct qca_ppe_priv *priv, int port,
 				val |= FIELD_PREP(HPPE_PORT5_GMAC_SEL,
 						  HPPE_PORT5_GMAC_SEL_GMAC);
 			break;
+		case PHY_INTERFACE_MODE_10GBASER:
 		case PHY_INTERFACE_MODE_USXGMII:
 			val = FIELD_PREP(HPPE_PORT5_PCS_SEL,
 					 HPPE_PORT5_PCS1);
@@ -841,6 +843,7 @@ static void ppe_pcs_set_mux_hppe(struct qca_ppe_priv *priv, int port,
 						  HPPE_PORT6_GMAC_SEL_GMAC);
 
 			break;
+		case PHY_INTERFACE_MODE_10GBASER:
 		case PHY_INTERFACE_MODE_USXGMII:
 			break;
 		default:
@@ -875,6 +878,7 @@ static void ppe_pcs_set_mux_cppe(struct qca_ppe_priv *priv, int port,
 			if (!phylink_autoneg_inband(mode))
 				val |= CPPE_PORT5_GMAC_SEL;
 			break;
+		case PHY_INTERFACE_MODE_10GBASER:
 		case PHY_INTERFACE_MODE_USXGMII:
 			val = FIELD_PREP(CPPE_PORT5_PCS_SEL,
 					 CPPE_PORT5_PCS1_CH0);
@@ -944,7 +948,8 @@ static void qca_ppe_mac_config(struct phylink_config *config,
 	struct qca_ppe_priv *priv = ds_to_priv(dp->ds);
 	int port = dp->index;
 
-	if (state->interface == PHY_INTERFACE_MODE_USXGMII) {
+	if (state->interface == PHY_INTERFACE_MODE_USXGMII ||
+	    state->interface == PHY_INTERFACE_MODE_10GBASER) {
 		qca_ppe_xgmac_config(priv, port);
 	}
 
@@ -983,7 +988,8 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 
 	/* Invalid mode for port < 5 */
 	if ((interface == PHY_INTERFACE_MODE_2500BASEX ||
-	     interface == PHY_INTERFACE_MODE_USXGMII) &&
+	     interface == PHY_INTERFACE_MODE_USXGMII ||
+	     interface == PHY_INTERFACE_MODE_10GBASER) &&
 	     port < 5)
 		return;
 
@@ -997,6 +1003,7 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 				 tx_pause, rx_pause);
 		break;
 	case PHY_INTERFACE_MODE_2500BASEX:
+	case PHY_INTERFACE_MODE_10GBASER:
 	case PHY_INTERFACE_MODE_USXGMII:
 		ppe_xgmac_link_up(priv, port, interface, speed,
 				  tx_pause, rx_pause);
@@ -1027,6 +1034,7 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 		}
 		break;
 	case PHY_INTERFACE_MODE_USXGMII:
+	case PHY_INTERFACE_MODE_10GBASER:
 		switch (speed) {
 		case SPEED_10:
 			rate = 1250000;
@@ -1068,6 +1076,7 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 		break;
 	case PHY_INTERFACE_MODE_2500BASEX:
 	case PHY_INTERFACE_MODE_USXGMII:
+	case PHY_INTERFACE_MODE_10GBASER:
 		ppe_port_xgmac_set(priv, port, true, true);
 		break;
 	default:
