@@ -756,6 +756,8 @@ static void qca_ppe_phylink_get_caps(struct dsa_switch *ds, int port,
 			  config->supported_interfaces);
 		__set_bit(PHY_INTERFACE_MODE_SGMII,
 			  config->supported_interfaces);
+		__set_bit(PHY_INTERFACE_MODE_1000BASEX,
+			  config->supported_interfaces);
 		__set_bit(PHY_INTERFACE_MODE_2500BASEX,
 			  config->supported_interfaces);
 		__set_bit(PHY_INTERFACE_MODE_USXGMII,
@@ -800,6 +802,7 @@ static void ppe_pcs_set_mux_hppe(struct qca_ppe_priv *priv, int port,
 					 HPPE_PORT5_GMAC_SEL_GMAC);
 			break;
 		case PHY_INTERFACE_MODE_SGMII:
+		case PHY_INTERFACE_MODE_1000BASEX:
 			val = FIELD_PREP(HPPE_PORT5_PCS_SEL,
 					 HPPE_PORT5_PCS1) |
 			      FIELD_PREP(HPPE_PORT5_GMAC_SEL,
@@ -827,6 +830,7 @@ static void ppe_pcs_set_mux_hppe(struct qca_ppe_priv *priv, int port,
 
 		switch (interface) {
 		case PHY_INTERFACE_MODE_SGMII:
+		case PHY_INTERFACE_MODE_1000BASEX:
 			val |= FIELD_PREP(HPPE_PORT6_GMAC_SEL,
 					  HPPE_PORT6_GMAC_SEL_GMAC);
 			break;
@@ -859,6 +863,7 @@ static void ppe_pcs_set_mux_cppe(struct qca_ppe_priv *priv, int port,
 		mask = CPPE_PORT5_PCS_SEL | CPPE_PORT5_GMAC_SEL;
 		switch (interface) {
 		case PHY_INTERFACE_MODE_SGMII:
+		case PHY_INTERFACE_MODE_1000BASEX:
 			val = FIELD_PREP(CPPE_PORT5_PCS_SEL,
 					 CPPE_PORT5_PCS1_CH0) |
 			      CPPE_PORT5_GMAC_SEL;
@@ -987,6 +992,7 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_QSGMII:
 	case PHY_INTERFACE_MODE_PSGMII:
+	case PHY_INTERFACE_MODE_1000BASEX:
 		ppe_gmac_link_up(priv, port, speed, duplex,
 				 tx_pause, rx_pause);
 		break;
@@ -1003,6 +1009,7 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_QSGMII:
 	case PHY_INTERFACE_MODE_PSGMII:
+	case PHY_INTERFACE_MODE_1000BASEX:
 	case PHY_INTERFACE_MODE_2500BASEX:
 		switch (speed) {
 		case SPEED_10:
@@ -1056,6 +1063,7 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_QSGMII:
 	case PHY_INTERFACE_MODE_PSGMII:
+	case PHY_INTERFACE_MODE_1000BASEX:
 		ppe_port_gmac_set(priv, port, true, true);
 		break;
 	case PHY_INTERFACE_MODE_2500BASEX:
