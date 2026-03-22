@@ -132,27 +132,19 @@ static void ppe_xgmac_link_up(struct qca_ppe_priv *priv, int port,
 			   PPE_XGMAC_SPEED_SELECT |
 			   PPE_XGMAC_USXGMII_SELECT, val);
 
-	regmap_set_bits(priv->regmap, PPE_XGMAC_RX_CONF(xgmac),
-			PPE_XGMAC_AUTO_CRC_STRIP |
-			PPE_XGMAC_CRC_STRIP_TYPE);
+	regmap_write_bits(priv->regmap, PPE_XGMAC_RX_CONF(xgmac),
+			   PPE_XGMAC_AUTO_CRC_STRIP |
+			   PPE_XGMAC_CRC_STRIP_TYPE,
+			   PPE_XGMAC_AUTO_CRC_STRIP |
+			   PPE_XGMAC_CRC_STRIP_TYPE);
 
-	regmap_set_bits(priv->regmap, PPE_XGMAC_PACKET_FILTER(xgmac),
-			PPE_XGMAC_PROMISCUOUS);
+	regmap_write_bits(priv->regmap, PPE_XGMAC_TX_FLOW_CTRL(xgmac),
+			  PPE_XGMAC_TX_FLOW_ENABLE,
+			  tx_pause ? PPE_XGMAC_RX_FLOW_ENABLE : 0);
 
-	regmap_update_bits(priv->regmap, PPE_XGMAC_WATCHDOG_TIMEOUT(xgmac),
-			   PPE_XGMAC_WATCHDOG_ENABLE |
-			   PPE_XGMAC_WATCHDOG_THRESHOLD,
-			   PPE_XGMAC_WATCHDOG_ENABLE |
-			   FIELD_PREP(PPE_XGMAC_WATCHDOG_THRESHOLD, 0xb));
-
-	regmap_update_bits(priv->regmap, PPE_XGMAC_TX_FLOW_CTRL(xgmac),
-			   PPE_XGMAC_PAUSE_TIME | PPE_XGMAC_TX_FLOW_ENABLE,
-			   FIELD_PREP(PPE_XGMAC_PAUSE_TIME, 0xffff) |
-			   tx_pause ? PPE_XGMAC_RX_FLOW_ENABLE : 0);
-
-	regmap_update_bits(priv->regmap, PPE_XGMAC_RX_FLOW_CTRL(xgmac),
-			   PPE_XGMAC_RX_FLOW_ENABLE,
-			   rx_pause ? PPE_XGMAC_RX_FLOW_ENABLE : 0);
+	regmap_write_bits(priv->regmap, PPE_XGMAC_RX_FLOW_CTRL(xgmac),
+			  PPE_XGMAC_RX_FLOW_ENABLE,
+			  rx_pause ? PPE_XGMAC_RX_FLOW_ENABLE : 0);
 }
 
 static void ppe_port_cnt_enable(struct qca_ppe_priv *priv, int port)
@@ -908,6 +900,37 @@ static int qca_ppe_mac_prepare(struct phylink_config *config, unsigned int mode,
 	return 0;
 }
 
+static void qca_ppe_xgmac_config(struct qca_ppe_priv *priv, int port)
+{
+	int xgmac = port - 5;
+
+	regmap_set_bits(priv->regmap, PPE_XGMAC_TX_CONF(xgmac),
+			PPE_XGMAC_JABBER_DISABLE);
+
+	regmap_update_bits(priv->regmap, PPE_XGMAC_RX_CONF(xgmac),
+			   PPE_XGMAC_GMII_MPLS_LAYER_CK |
+			   PPE_XGMAC_WATCHDOG_DISABLE,
+			   PPE_XGMAC_GMII_MPLS_LAYER_CK);
+
+	regmap_update_bits(priv->regmap, PPE_XGMAC_PACKET_FILTER(xgmac),
+			   PPE_XGMAC_PROMISCUOUS |
+			   PPE_XGMAC_PASS_CONTROL_FRAME |
+			   PPE_XGMAC_RATE_ADAPTATION,
+			   PPE_XGMAC_PROMISCUOUS |
+			   FIELD_PREP(PPE_XGMAC_PASS_CONTROL_FRAME, 0x2) |
+			   PPE_XGMAC_RATE_ADAPTATION);
+
+	regmap_update_bits(priv->regmap, PPE_XGMAC_WATCHDOG_TIMEOUT(xgmac),
+			   PPE_XGMAC_WATCHDOG_ENABLE |
+			   PPE_XGMAC_WATCHDOG_THRESHOLD,
+			   PPE_XGMAC_WATCHDOG_ENABLE |
+			   FIELD_PREP(PPE_XGMAC_WATCHDOG_THRESHOLD, 0xb));
+
+	regmap_update_bits(priv->regmap, PPE_XGMAC_TX_FLOW_CTRL(xgmac),
+			   PPE_XGMAC_PAUSE_TIME,
+			   FIELD_PREP(PPE_XGMAC_PAUSE_TIME, 0xffff));
+}
+
 static void qca_ppe_mac_config(struct phylink_config *config,
 				    unsigned int mode,
 				    const struct phylink_link_state *state)
@@ -915,6 +938,10 @@ static void qca_ppe_mac_config(struct phylink_config *config,
 	struct dsa_port *dp = dsa_phylink_to_port(config);
 	struct qca_ppe_priv *priv = ds_to_priv(dp->ds);
 	int port = dp->index;
+
+	if (state->interface == PHY_INTERFACE_MODE_USXGMII) {
+		qca_ppe_xgmac_config(priv, port);
+	}
 
 	if (priv->port_rst[port]) {
 		reset_control_assert(priv->port_rst[port]);
