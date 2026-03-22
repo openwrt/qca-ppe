@@ -71,6 +71,7 @@ static void ppe_gmac_link_up(struct qca_ppe_priv *priv, int port,
 	case SPEED_100:
 		val |= FIELD_PREP(PPE_GMAC_SPEED_MASK, 1);
 		break;
+	case SPEED_2500:
 	case SPEED_1000:
 		val |= FIELD_PREP(PPE_GMAC_SPEED_MASK, 2);
 		break;
@@ -813,6 +814,13 @@ static void ppe_pcs_set_mux_hppe(struct qca_ppe_priv *priv, int port,
 					 HPPE_PORT5_GMAC_SEL_GMAC);
 			break;
 		case PHY_INTERFACE_MODE_2500BASEX:
+			val = FIELD_PREP(HPPE_PORT5_PCS_SEL,
+					 HPPE_PORT5_PCS1);
+			/* In-Band is only supported by XGMAC */
+			if (!phylink_autoneg_inband(mode))
+				val |= FIELD_PREP(HPPE_PORT5_GMAC_SEL,
+						  HPPE_PORT5_GMAC_SEL_GMAC);
+			break;
 		case PHY_INTERFACE_MODE_USXGMII:
 			val = FIELD_PREP(HPPE_PORT5_PCS_SEL,
 					 HPPE_PORT5_PCS1);
@@ -831,6 +839,12 @@ static void ppe_pcs_set_mux_hppe(struct qca_ppe_priv *priv, int port,
 					  HPPE_PORT6_GMAC_SEL_GMAC);
 			break;
 		case PHY_INTERFACE_MODE_2500BASEX:
+			/* In-Band is only supported by XGMAC */
+			if (!phylink_autoneg_inband(mode))
+				val |= FIELD_PREP(HPPE_PORT6_GMAC_SEL,
+						  HPPE_PORT6_GMAC_SEL_GMAC);
+
+			break;
 		case PHY_INTERFACE_MODE_USXGMII:
 			break;
 		default:
@@ -858,6 +872,12 @@ static void ppe_pcs_set_mux_cppe(struct qca_ppe_priv *priv, int port,
 			      CPPE_PORT5_GMAC_SEL;
 			break;
 		case PHY_INTERFACE_MODE_2500BASEX:
+			val = FIELD_PREP(CPPE_PORT5_PCS_SEL,
+					 CPPE_PORT5_PCS1_CH0);
+			/* In-Band is only supported by XGMAC */
+			if (!phylink_autoneg_inband(mode))
+				val |= CPPE_PORT5_GMAC_SEL;
+			break;
 		case PHY_INTERFACE_MODE_USXGMII:
 			val = FIELD_PREP(CPPE_PORT5_PCS_SEL,
 					 CPPE_PORT5_PCS1_CH0);
