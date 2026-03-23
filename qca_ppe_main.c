@@ -959,16 +959,36 @@ static void qca_ppe_mac_config(struct phylink_config *config,
 }
 
 static void qca_ppe_mac_link_down(struct phylink_config *config,
-				       unsigned int mode,
-				       phy_interface_t interface)
+				  unsigned int mode,
+				  phy_interface_t interface)
 {
 	struct dsa_port *dp = dsa_phylink_to_port(config);
 	struct qca_ppe_priv *priv = ds_to_priv(dp->ds);
 	int port = dp->index;
 
-	/* TODO handle xgmac */
+	switch (interface) {
+	case PHY_INTERFACE_MODE_INTERNAL:
+	case PHY_INTERFACE_MODE_SGMII:
+	case PHY_INTERFACE_MODE_QSGMII:
+	case PHY_INTERFACE_MODE_PSGMII:
+	case PHY_INTERFACE_MODE_1000BASEX:
+		ppe_port_gmac_set(priv, port, false, false);
+		break;
+	case PHY_INTERFACE_MODE_2500BASEX:
+		if (!phylink_autoneg_inband(mode))
+			ppe_port_gmac_set(priv, port, false, false);
+		else
+			ppe_port_xgmac_set(priv, port, false, false);
+		break;
+	case PHY_INTERFACE_MODE_10GBASER:
+	case PHY_INTERFACE_MODE_USXGMII:
+		ppe_port_xgmac_set(priv, port, false, false);
+		break;
+	default:
+		return;
+	}
 
-	ppe_port_gmac_set(priv, port, false, false);
+	return;
 }
 
 static void qca_ppe_mac_link_up(struct phylink_config *config,
