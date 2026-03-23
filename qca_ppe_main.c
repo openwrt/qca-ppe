@@ -512,9 +512,7 @@ static int qca_ppe_port_enable(struct dsa_switch *ds, int port,
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 
-	/* TODO handle xgmac */
-
-	ppe_port_gmac_set(priv, port, true, true);
+	ppe_port_bridge_txmac_set(priv, port, true);
 
 	return 0;
 }
@@ -523,9 +521,7 @@ static void qca_ppe_port_disable(struct dsa_switch *ds, int port)
 {
 	struct qca_ppe_priv *priv = ds_to_priv(ds);
 
-	/* TODO handle xgmac */
-
-	ppe_port_gmac_set(priv, port, false, false);
+	ppe_port_bridge_txmac_set(priv, port, false);
 }
 
 static struct qca_ppe_bridge_vsi *
@@ -972,7 +968,6 @@ static void qca_ppe_mac_link_down(struct phylink_config *config,
 
 	/* TODO handle xgmac */
 
-	ppe_port_bridge_txmac_set(priv, port, false);
 	ppe_port_gmac_set(priv, port, false, false);
 }
 
@@ -1096,8 +1091,6 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 	default:
 		return;
 	}
-
-	ppe_port_bridge_txmac_set(priv, port, true);
 }
 
 static const struct phylink_mac_ops qca_ppe_phylink_mac_ops = {
