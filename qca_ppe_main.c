@@ -967,7 +967,6 @@ static void qca_ppe_mac_link_down(struct phylink_config *config,
 	int port = dp->index;
 
 	switch (interface) {
-	case PHY_INTERFACE_MODE_INTERNAL:
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_QSGMII:
 	case PHY_INTERFACE_MODE_PSGMII:
@@ -1011,7 +1010,6 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 		return;
 
 	switch (interface) {
-	case PHY_INTERFACE_MODE_INTERNAL:
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_QSGMII:
 	case PHY_INTERFACE_MODE_PSGMII:
@@ -1091,7 +1089,6 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 		clk_set_rate(priv->port_tx_clk[port], rate);
 
 	switch (interface) {
-	case PHY_INTERFACE_MODE_INTERNAL:
 	case PHY_INTERFACE_MODE_SGMII:
 	case PHY_INTERFACE_MODE_QSGMII:
 	case PHY_INTERFACE_MODE_PSGMII:
