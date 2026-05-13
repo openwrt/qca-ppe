@@ -510,7 +510,6 @@ struct qca_ppe_priv {
 	struct qca_ppe_vlan_entry vlans[PPE_VSI_MAX];
 	struct net_device *port_br_dev[QCA_PPE_MAX_PORTS];
 	u16 port_pvid[QCA_PPE_MAX_PORTS];
-	struct phylink_pcs *port_pcs[QCA_PPE_MAX_PORTS];
 	struct clk *port_rx_clk[QCA_PPE_MAX_PORTS];
 	struct clk *port_tx_clk[QCA_PPE_MAX_PORTS];
 	struct reset_control *port_rst[QCA_PPE_MAX_PORTS];
