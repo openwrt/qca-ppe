@@ -5,6 +5,7 @@
 #include <linux/module.h>
 #include <linux/of_device.h>
 #include <linux/of_net.h>
+#include <linux/pcs/pcs.h>
 #include <linux/phy.h>
 #include <linux/phylink.h>
 #include <linux/platform_device.h>
@@ -713,8 +714,29 @@ static int qca_ppe_port_mdb_del(struct dsa_switch *ds, int port,
 }
 
 static void qca_ppe_phylink_get_caps(struct dsa_switch *ds, int port,
-					 struct phylink_config *config)
+				     struct phylink_config *config)
 {
+	struct dsa_port *dp = dsa_to_port(ds, port);
+	struct phylink_pcs **available_pcs;
+	unsigned int num_pcs;
+	int ret;
+
+	ret = fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), NULL, &num_pcs);
+	if (ret)
+		return;
+
+	available_pcs = kcalloc(num_pcs, sizeof(*available_pcs), GFP_KERNEL);
+	if (!available_pcs)
+		return;
+
+	ret = fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), available_pcs,
+				       &num_pcs);
+	if (ret)
+		goto out;
+
+	config->available_pcs = available_pcs;
+	config->num_available_pcs = num_pcs;
+
 	switch (port) {
 	case 0:
 		config->mac_capabilities =
@@ -763,16 +785,12 @@ static void qca_ppe_phylink_get_caps(struct dsa_switch *ds, int port,
 			  config->supported_interfaces);
 		break;
 	}
-}
 
-static struct phylink_pcs *
-qca_ppe_mac_select_pcs(struct phylink_config *config,
-			    phy_interface_t interface)
-{
-	struct dsa_port *dp = dsa_phylink_to_port(config);
-	struct qca_ppe_priv *priv = ds_to_priv(dp->ds);
+	phy_interface_copy(config->pcs_interfaces,
+			   config->supported_interfaces);
 
-	return priv->port_pcs[dp->index];
+out:
+	kfree(available_pcs);
 }
 
 static void ppe_pcs_set_mux_hppe(struct qca_ppe_priv *priv, int port,
@@ -1111,7 +1129,6 @@ static void qca_ppe_mac_link_up(struct phylink_config *config,
 }
 
 static const struct phylink_mac_ops qca_ppe_phylink_mac_ops = {
-	.mac_select_pcs	= qca_ppe_mac_select_pcs,
 	.mac_prepare	= qca_ppe_mac_prepare,
 	.mac_config	= qca_ppe_mac_config,
 	.mac_link_down	= qca_ppe_mac_link_down,
@@ -1331,30 +1348,10 @@ static void ppe_ctrlpkt_init(struct qca_ppe_priv *priv)
 	regmap_write(priv->regmap, PPE_APP_CTRL(0) + 8, 0x000093fc);
 }
 
-static void ppe_pcs_teardown(struct qca_ppe_priv *priv)
+static int ppe_ipq6018_mux_setup(struct qca_ppe_priv *priv)
 {
-	int i;
-
-	for (i = 1; i < priv->data->num_ports; i++) {
-		if (!priv->port_pcs[i])
-			continue;
-
-		qca_uniphy_pcs_put(priv->port_pcs[i]);
-		priv->port_pcs[i] = NULL;
-	}
-}
-
-static int ppe_pcs_setup(struct qca_ppe_priv *priv)
-{
-	const struct ppe_data *d = priv->data;
 	struct device_node *ports_np, *port_np;
-	struct device_node *psgmii_uniphy = NULL;
-	struct device_node *port5_uniphy = NULL;
-	struct device_node *port6_uniphy = NULL;
-	phy_interface_t port5_mode = PHY_INTERFACE_MODE_NA;
-	phy_interface_t port6_mode = PHY_INTERFACE_MODE_NA;
 	struct of_phandle_args pcs_args;
-	struct phylink_pcs *pcs;
 	int port3_ch = -1;
 	u32 port;
 	int ret;
@@ -1365,7 +1362,10 @@ static int ppe_pcs_setup(struct qca_ppe_priv *priv)
 
 	for_each_available_child_of_node(ports_np, port_np) {
 		ret = of_property_read_u32(port_np, "reg", &port);
-		if (ret || port == 0 || port >= d->num_ports)
+		if (ret)
+			continue;
+
+		if (port != 3)
 			continue;
 
 		ret = of_parse_phandle_with_args(port_np, "pcs-handle",
@@ -1373,42 +1373,13 @@ static int ppe_pcs_setup(struct qca_ppe_priv *priv)
 		if (ret)
 			continue;
 
-		switch (port) {
-		case 1 ... 4:
-			if (!psgmii_uniphy)
-				psgmii_uniphy = pcs_args.np;
-			if (port == 3)
-				port3_ch = pcs_args.args[0];
-			break;
-		case 5:
-			port5_uniphy = pcs_args.np;
-			of_get_phy_mode(port_np, &port5_mode);
-			break;
-		case 6:
-			port6_uniphy = pcs_args.np;
-			of_get_phy_mode(port_np, &port6_mode);
-			break;
-		}
-
-		pcs = qca_uniphy_pcs_get(priv->ds.dev, pcs_args.np,
-					   pcs_args.args[0]);
-		of_node_put(pcs_args.np);
-		if (IS_ERR(pcs)) {
-			of_node_put(port_np);
-			of_node_put(ports_np);
-			ppe_pcs_teardown(priv);
-			return dev_err_probe(priv->ds.dev, PTR_ERR(pcs),
-					     "failed to get PCS for port %d\n",
-					     port);
-		}
-
-		priv->port_pcs[port] = pcs;
+		port3_ch = pcs_args.args[0];
 	}
 
 	of_node_put(ports_np);
 
 	/* FIXME: better investigate this */
-	if (d->type == PPE_TYPE_IPQ6018 && port3_ch == 4)
+	if (port3_ch == 4)
 		regmap_update_bits(priv->regmap, PPE_PORT_MUX_CTRL,
 				   CPPE_PORT3_PCS_SEL | CPPE_PCS0_CH4_SEL,
 				   FIELD_PREP(CPPE_PORT3_PCS_SEL,
@@ -1517,20 +1488,21 @@ static int qca_ppe_probe(struct platform_device *pdev)
 	ppe_mac_hw_init(priv);
 	ppe_ctrlpkt_init(priv);
 
-	ret = ppe_pcs_setup(priv);
-	if (ret)
-		goto err_clk;
+
+	if (data->type == PPE_TYPE_IPQ6018) {
+		ret = ppe_ipq6018_mux_setup(priv);
+		if (ret)
+			goto err_clk;
+	}
 
 	ret = dsa_register_switch(ds);
 	if (ret)
-		goto err_pcs;
+		goto err_clk;
 
 	platform_set_drvdata(pdev, priv);
 
 	return 0;
 
-err_pcs:
-	ppe_pcs_teardown(priv);
 err_clk:
 	clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
 	return ret;
@@ -1541,7 +1513,6 @@ static void qca_ppe_remove(struct platform_device *pdev)
 	struct qca_ppe_priv *priv = platform_get_drvdata(pdev);
 
 	dsa_unregister_switch(&priv->ds);
-	ppe_pcs_teardown(priv);
 	clk_bulk_disable_unprepare(priv->num_clks, priv->clks);
 }
 
