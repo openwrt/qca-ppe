@@ -721,21 +721,25 @@ static void qca_ppe_phylink_get_caps(struct dsa_switch *ds, int port,
 	unsigned int num_pcs;
 	int ret;
 
-	ret = fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), NULL, &num_pcs);
-	if (ret)
-		return;
+	if (port != 0) {
+		ret = fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), NULL, &num_pcs);
+		if (ret)
+			return;
 
-	available_pcs = kcalloc(num_pcs, sizeof(*available_pcs), GFP_KERNEL);
-	if (!available_pcs)
-		return;
+		available_pcs = kcalloc(num_pcs, sizeof(*available_pcs), GFP_KERNEL);
+		if (!available_pcs)
+			return;
 
-	ret = fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), available_pcs,
-				       &num_pcs);
-	if (ret)
-		goto out;
+		ret = fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), available_pcs,
+					       &num_pcs);
+		if (ret) {
+			kfree(available_pcs);
+			return;
+		}
 
-	config->available_pcs = available_pcs;
-	config->num_available_pcs = num_pcs;
+		config->available_pcs = available_pcs;
+		config->num_available_pcs = num_pcs;
+	}
 
 	switch (port) {
 	case 0:
@@ -786,11 +790,9 @@ static void qca_ppe_phylink_get_caps(struct dsa_switch *ds, int port,
 		break;
 	}
 
-	phy_interface_copy(config->pcs_interfaces,
-			   config->supported_interfaces);
-
-out:
-	kfree(available_pcs);
+	if (port != 0)
+		phy_interface_copy(config->pcs_interfaces,
+				   config->supported_interfaces);
 }
 
 static void ppe_pcs_set_mux_hppe(struct qca_ppe_priv *priv, int port,
