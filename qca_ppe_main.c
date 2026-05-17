@@ -713,32 +713,29 @@ static int qca_ppe_port_mdb_del(struct dsa_switch *ds, int port,
 				mdb->vid, PPE_FDB_OP_ADD);
 }
 
+static int qca_ppe_fill_available_pcs(struct phylink_config *config,
+				      struct phylink_pcs **available_pcs,
+				      unsigned int num_available_pcs)
+{
+	struct dsa_port *dp = dsa_phylink_to_port(config);
+
+	return fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), available_pcs,
+					&num_available_pcs);
+}
+
 static void qca_ppe_phylink_get_caps(struct dsa_switch *ds, int port,
 				     struct phylink_config *config)
 {
 	struct dsa_port *dp = dsa_to_port(ds, port);
-	struct phylink_pcs **available_pcs;
-	unsigned int num_pcs;
 	int ret;
 
 	if (port != 0) {
-		ret = fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), NULL, &num_pcs);
+		ret = fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), NULL,
+					       &config->num_available_pcs);
 		if (ret)
 			return;
 
-		available_pcs = kcalloc(num_pcs, sizeof(*available_pcs), GFP_KERNEL);
-		if (!available_pcs)
-			return;
-
-		ret = fwnode_phylink_pcs_parse(of_fwnode_handle(dp->dn), available_pcs,
-					       &num_pcs);
-		if (ret) {
-			kfree(available_pcs);
-			return;
-		}
-
-		config->available_pcs = available_pcs;
-		config->num_available_pcs = num_pcs;
+		config->fill_available_pcs = qca_ppe_fill_available_pcs;
 	}
 
 	switch (port) {
